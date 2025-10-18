@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+  # サービス名
+  django:
+    build:
+      context: ./containers    # Dockerfileがあるディレクトリまでの相対パス
+      dockerfile: Dockerfile   # Dockerfileのファイル名
+    
+    # 作成するコンテナ名の指定
+    container_name: django
+
+    # 使用するポートの設定
+    ports:
+      - "8000:8000"
+    
+    # 対話的なセッションやコマンドラインの操作を許可する
+    tty: true
+
+    volumes:
+      # ローカルの作業ディレクトリと仮想環境の作業ディレクトリの対応づけ
+      - ${SRC_PATH}:/root/workspace
+    depends_on:
+      - db
+
+  db:
+    image: postgres:11
+    ports:
+      - ${DB_PORT}
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
