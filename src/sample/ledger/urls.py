@@ -9,7 +9,7 @@ from ledger.views import (
 
 urlpatterns = [
     path("new/", JournalEntryCreateView.as_view(), name="journal_entry_new"),
-    path("<int:pk>/", JournalEntryListView.as_view(), name="journal_entry_detail"),
+    path("<int:pk>/", JournalEntryListView.as_view(), name="journal_entry_list"),
     path("<int:pk>/edit/", JournalEntryUpdateView.as_view(), name="journal_entry_edit"),
     path("<int:pk>/delete/", JournalEntryDeleteView.as_view(), name="journal_entry_delete"),
 ]
