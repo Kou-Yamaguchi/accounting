@@ -81,7 +81,7 @@ class Debit(models.Model):
     debits (借方明細)
     """
 
-    transaction = models.ForeignKey(
+    journal_entry = models.ForeignKey(
         JournalEntry, on_delete=models.CASCADE, related_name="debits"
     )
     account = models.ForeignKey(
@@ -118,7 +118,7 @@ class Credit(models.Model):
     credits (貸方明細)
     """
 
-    transaction = models.ForeignKey(
+    journal_entry = models.ForeignKey(
         JournalEntry, on_delete=models.CASCADE, related_name="credits"
     )
     account = models.ForeignKey(

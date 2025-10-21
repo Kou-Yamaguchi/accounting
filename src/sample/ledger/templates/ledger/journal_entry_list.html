@@ -1,0 +1,11 @@
+<h2>仕訳一覧</h2>
+<a href="{% url 'journal_entry_new' %}">新規登録</a>
+<ul>
+  {% for entry in journal_entries %}
+  <li>
+    {{ entry.date }} {{ entry.summary }}
+    <a href="{% url 'journal_entry_edit' entry.pk %}">編集</a>
+    <a href="{% url 'journal_entry_delete' entry.pk %}">削除</a>
+  </li>
+  {% endfor %}
+</ul>

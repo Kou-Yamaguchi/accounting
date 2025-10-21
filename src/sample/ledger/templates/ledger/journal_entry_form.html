@@ -1,0 +1,19 @@
+<h2>仕訳登録・編集</h2>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+
+  <h3>借方</h3>
+  {{ debit_formset.management_form }}
+  {% for form in debit_formset %}
+  {{ form.as_p }}
+  {% endfor %}
+
+  <h3>貸方</h3>
+  {{ credit_formset.management_form }}
+  {% for form in credit_formset %}
+  {{ form.as_p }}
+  {% endfor %}
+
+  <button type="submit">保存</button>
+</form>
