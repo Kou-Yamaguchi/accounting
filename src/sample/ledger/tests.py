@@ -22,13 +22,13 @@ class JournalEntryViewTest(TestCase):
         Debit.objects.create(
             journal_entry=self.entry,
             account=self.cash,
-            amount=100.00,
+            amount=1000.00,
             created_by=self.user
         )
         Credit.objects.create(
             journal_entry=self.entry,
             account=self.sales,
-            amount=100.00,
+            amount=1000.00,
             created_by=self.user
         )
 
