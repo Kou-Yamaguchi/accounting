@@ -44,7 +44,6 @@ class JournalEntryViewTest(TestCase):
     def test_journal_entry_list_view(self):
         response = self.client.get(reverse("journal_entry_list"))
         self.assertEqual(response.status_code, 200)
-        print(response.content)
         self.assertContains(response, "初期取引")
 
     def test_create_journal_entry(self):
@@ -101,6 +100,6 @@ class JournalEntryViewTest(TestCase):
         response = self.client.post(f'/ledger/{self.entry.id}/delete/')
         self.assertEqual(response.status_code, 302)  # リダイレクトを確認
         journal_entries = JournalEntry.objects.all()
-        self.assertEqual(
-            journal_entries.count(), 1
-        )  # 前処理で1件，test_create_journal_entryで1件追加，1件削除で合計1件
+        self.assertEqual(journal_entries.count(), 0)
+        self.assertEqual(Debit.objects.count(), 0)
+        self.assertEqual(Credit.objects.count(), 0)
