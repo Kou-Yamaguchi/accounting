@@ -2,17 +2,26 @@
 <form method="post">
   {% csrf_token %}
   {{ form.as_p }}
+  {{ form.errors }}
 
   <h3>借方</h3>
   {{ debit_formset.management_form }}
-  {% for form in debit_formset %}
-  {{ form.as_p }}
+  {{ debit_formset.non_form_errors }}
+  {% for debit_form in debit_formset %}
+    {{ debit_form.as_p }}
+    {% if debit_form.non_field_errors %}
+    {% for error in debit_form.non_field_errors %}
+      <div class="error">{{ error }}</div>
+    {% endfor %}
+    {% endif %}
+    {{ debit_form.errors }}
   {% endfor %}
 
   <h3>貸方</h3>
   {{ credit_formset.management_form }}
-  {% for form in credit_formset %}
-  {{ form.as_p }}
+  {% for credit_form in credit_formset %}
+  {{ credit_form.as_p }}
+  {{ credit_form.errors }}
   {% endfor %}
 
   <button type="submit">保存</button>
