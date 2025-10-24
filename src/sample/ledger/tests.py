@@ -103,3 +103,77 @@ class JournalEntryViewTest(TestCase):
         self.assertEqual(journal_entries.count(), 0)
         self.assertEqual(Debit.objects.count(), 0)
         self.assertEqual(Credit.objects.count(), 0)
+
+
+class JournalEntryValidationTest(TestCase):
+    """
+    journal_entryのバリデーションテスト
+    不正なデータが保存されないことを確認する
+    """
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='testuser',
+            password='testpass'
+        )
+        self.client.force_login(self.user)
+        self.cash = Account.objects.create(name="現金", type="asset")
+        self.sales = Account.objects.create(name="売上", type="revenue")
+
+    def test_empty_journal_entry(self):
+        data = {
+            'date': '',
+            'summary': '',
+            'debits-TOTAL_FORMS': '0',
+            'debits-INITIAL_FORMS': '0',
+            'debits-MIN_NUM_FORMS': '0',
+            'debits-MAX_NUM_FORMS': '1000',
+            'credits-TOTAL_FORMS': '0',
+            'credits-INITIAL_FORMS': '0',
+            'credits-MIN_NUM_FORMS': '0',
+            'credits-MAX_NUM_FORMS': '1000',
+        }
+        response = self.client.post('/ledger/new/', data)
+        self.assertEqual(response.status_code, 200)  # フォームエラーで再表示
+        self.assertContains(response, "このフィールドは必須です")  # 日付と摘要のエラーメッセージ確認
+
+    def test_negative_amount_debit(self):
+        data = {
+            'date': '2024-01-01',
+            'summary': '負の金額取引',
+            'debits-TOTAL_FORMS': '1',
+            'debits-INITIAL_FORMS': '0',
+            'debits-MIN_NUM_FORMS': '0',
+            'debits-MAX_NUM_FORMS': '1000',
+            'debits-0-account': self.cash.id,
+            'debits-0-amount': '-100.00',
+            'credits-TOTAL_FORMS': '1',
+            'credits-INITIAL_FORMS': '0',
+            'credits-MIN_NUM_FORMS': '0',
+            'credits-MAX_NUM_FORMS': '1000',
+            'credits-0-account': self.sales.id,
+            'credits-0-amount': '100.00',
+        }
+        response = self.client.post('/ledger/new/', data)
+        self.assertEqual(response.status_code, 200)  # フォームエラーで再表示
+        self.assertContains(response, "金額は正の数でなければなりません")  # 金額のエラーメッセージ確認
+
+    def test_unbalanced_journal_entry(self):
+        data = {
+            'date': '2024-01-01',
+            'summary': '不均衡取引',
+            'debits-TOTAL_FORMS': '1',
+            'debits-INITIAL_FORMS': '0',
+            'debits-MIN_NUM_FORMS': '0',
+            'debits-MAX_NUM_FORMS': '1000',
+            'debits-0-account': self.cash.id,
+            'debits-0-amount': '100.00',
+            'credits-TOTAL_FORMS': '1',
+            'credits-INITIAL_FORMS': '0',
+            'credits-MIN_NUM_FORMS': '0',
+            'credits-MAX_NUM_FORMS': '1000',
+            'credits-0-account': self.sales.id,
+            'credits-0-amount': '50.00',
+        }
+        response = self.client.post('/ledger/new/', data)
+        self.assertEqual(response.status_code, 200)  # フォームエラーで再表示
+        self.assertContains(response, "借方と貸方の合計が一致しません")
