@@ -155,7 +155,9 @@ class JournalEntryValidationTest(TestCase):
         }
         response = self.client.post('/ledger/new/', data)
         self.assertEqual(response.status_code, 200)  # フォームエラーで再表示
-        self.assertContains(response, "金額は正の数でなければなりません")  # 金額のエラーメッセージ確認
+        self.assertContains(
+            response, "金額は正の値でなければなりません。"
+        )  # 金額のエラーメッセージ確認
 
     def test_unbalanced_journal_entry(self):
         data = {
