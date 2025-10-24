@@ -66,10 +66,35 @@ class CreditForm(forms.ModelForm):
         return cleaned_data
 
 
+class BaseTotalFormSet(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        total_amount = Decimal("0.00")
+
+        for form in self.forms:
+            if form.cleaned_data and not form.cleaned_data.get("DELETE", False):
+                amount = form.cleaned_data.get("amount")
+                if amount is None or amount <= 0:
+                    raise forms.ValidationError("金額は正の数を入力してください。")
+                total_amount += amount
+
+        self.total_amount = total_amount
+
+
 DebitFormSet = forms.inlineformset_factory(
-    JournalEntry, Debit, form=DebitForm, extra=1, can_delete=True
+    JournalEntry,
+    Debit,
+    form=DebitForm,
+    formset=BaseTotalFormSet,
+    extra=1,
+    can_delete=True
 )
 
 CreditFormSet = forms.inlineformset_factory(
-    JournalEntry, Credit, form=CreditForm, extra=1, can_delete=True
+    JournalEntry,
+    Credit,
+    form=CreditForm,
+    formset=BaseTotalFormSet,
+    extra=1,
+    can_delete=True
 )

@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.db import transaction
+from decimal import Decimal
 
 from ledger.models import JournalEntry
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
@@ -40,8 +41,13 @@ class JournalEntryCreateView(CreateView):
 
         if not (debit_formset.is_valid() and credit_formset.is_valid()):
             return super().form_invalid(form)
+        total_debit = getattr(debit_formset, "total_amount", Decimal("0.00"))
+        total_credit = getattr(credit_formset, "total_amount", Decimal("0.00"))
 
-        # バリデーションOKならトランザクション内で保存
+        if total_debit != total_credit:
+            form.add_error(None, "借方合計と貸方合計は一致する必要があります。")
+            return super().form_invalid(form)
+
         with transaction.atomic():
             self.object = instance
             self.object.save()
@@ -76,6 +82,13 @@ class JournalEntryUpdateView(UpdateView):
         credit_formset = context.get("credit_formset")
 
         if not (debit_formset.is_valid() and credit_formset.is_valid()):
+            return super().form_invalid(form)
+
+        total_debit = getattr(debit_formset, 'total_amount', Decimal("0.00"))
+        total_credit = getattr(credit_formset, 'total_amount', Decimal("0.00"))
+
+        if total_debit != total_credit:
+            form.add_error(None, "借方合計と貸方合計は一致する必要があります。")
             return super().form_invalid(form)
 
         with transaction.atomic():

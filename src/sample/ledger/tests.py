@@ -178,4 +178,4 @@ class JournalEntryValidationTest(TestCase):
         }
         response = self.client.post('/ledger/new/', data)
         self.assertEqual(response.status_code, 200)  # フォームエラーで再表示
-        self.assertContains(response, "借方と貸方の合計が一致しません")
+        self.assertContains(response, "借方合計と貸方合計は一致する必要があります。")  # 不均衡のエラーメッセージ確認
