@@ -1,10 +1,11 @@
-from django.shortcuts import render
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.shortcuts import render, get_object_or_404
+from django.db.models import F, Value, CharField
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 from django.urls import reverse_lazy
 from django.db import transaction
 from decimal import Decimal
 
-from ledger.models import JournalEntry
+from ledger.models import JournalEntry, Account, Debit, Credit
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 
 
@@ -94,3 +95,86 @@ class JournalEntryDeleteView(DeleteView):
     model = JournalEntry
     template_name = "ledger/journal_entry_confirm_delete.html"
     success_url = reverse_lazy("journal_entry_list")
+
+
+class GeneralLedgerView(TemplateView):
+    """
+    特定の勘定科目の総勘定元帳を取得・表示するビュー。
+    URL: /ledger/<str:account_name>/
+    """
+
+    template_name = "ledger/general_ledger.html"  # 使用するテンプレートファイル名
+
+    def get_context_data(self, **kwargs):
+        # 親クラスのコンテキストデータを取得
+        context = super().get_context_data(**kwargs)
+
+        # URLから勘定科目名を取得
+        account_name = self.kwargs["account_name"]
+
+        # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
+        account = get_object_or_404(Account, name=account_name)
+        context["account"] = account
+        target_account_id = account.id
+
+        # 取得した勘定科目に関連する取引の科目の種類を全て取得
+        # N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
+        prefetch_args = ["journal_entry__debits__account", "journal_entry__credits__account"]
+        debit_lines = Debit.objects.filter(account_id=target_account_id).prefetch_related(*prefetch_args)
+        credit_lines = Credit.objects.filter(account_id=target_account_id).prefetch_related(*prefetch_args)
+        all_lines = sorted(
+            list(debit_lines) + list(credit_lines), key=lambda x: x.journal_entry.date
+        )
+        ledger_entries = []
+        running_balance = Decimal("0.00")
+
+        for line in all_lines:
+            je = line.journal_entry
+            # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
+            all_accounts = set()
+
+            # プリフェッチされたリレーションを利用して勘定科目を収集
+            # ここでの .all() はデータベースにクエリを発行せず、メモリ上のプリフェッチデータを利用します。
+            for debit in je.debits.all():
+                all_accounts.add(debit.account)
+            for credit in je.credits.all():
+                all_accounts.add(credit.account)
+
+            # ターゲット勘定科目を除外した、相手勘定科目のリスト
+            other_accounts = [
+                acc for acc in all_accounts if acc.id != target_account_id
+            ]
+
+            # 3. 相手勘定科目の決定ロジック (単一 vs 諸口)
+            counter_party_name = ""
+            if len(other_accounts) == 1:
+                # 相手勘定科目が1つの場合、その名前をセット
+                counter_party_name = other_accounts[0].name
+            elif len(other_accounts) > 1:
+                # 相手勘定科目が複数の場合
+                counter_party_name = "諸口"
+            else:
+                # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
+                counter_party_name = "取引エラー"
+
+            # 明細タイプによって借方・貸方金額を決定
+            is_debit_entry = isinstance(line, Debit)
+
+            if is_debit_entry:
+                running_balance += line.amount
+            else:
+                running_balance -= line.amount
+
+            entry = {
+                "date": je.date,
+                "summary": je.summary,
+                "counter_party": counter_party_name,
+                "debit_amount": line.amount if is_debit_entry else 0,
+                "credit_amount": line.amount if not is_debit_entry else 0,
+                "running_balance": running_balance,
+            }
+            ledger_entries.append(entry)
+
+        context["ledger_entries"] = ledger_entries
+
+        return context
