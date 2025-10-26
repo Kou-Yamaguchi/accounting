@@ -5,6 +5,7 @@ from ledger.views import (
     JournalEntryListView,
     JournalEntryUpdateView,
     JournalEntryDeleteView,
+    GeneralLedgerView,
 )
 
 urlpatterns = [
@@ -12,4 +13,5 @@ urlpatterns = [
     path("", JournalEntryListView.as_view(), name="journal_entry_list"),
     path("<int:pk>/edit/", JournalEntryUpdateView.as_view(), name="journal_entry_edit"),
     path("<int:pk>/delete/", JournalEntryDeleteView.as_view(), name="journal_entry_delete"),
+    path("ledger/<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger"),
 ]
