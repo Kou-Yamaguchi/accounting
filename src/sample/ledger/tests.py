@@ -429,30 +429,14 @@ class GeneralLedgerViewTest(TestCase):
         ledger_entries = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 3)
 
-        # 残高計算ロジックをテストコード側で実行
-        current_balance = Decimal("0")
-
         # エントリは日付順にソートされていることを前提とする
         # 現金は資産 (Asset) のため、借方が増加、貸方が減少
 
         # 1. 借方 100
-        current_balance += (
-            ledger_entries[0]["debit_amount"] - ledger_entries[0]["credit_amount"]
-        )
-        self.assertEqual(current_balance, Decimal("100"))
+        self.assertEqual(ledger_entries[0]["running_balance"], Decimal("100"))
 
         # 2. 貸方 40 (100 - 40 = 60)
-        current_balance += (
-            ledger_entries[1]["debit_amount"] - ledger_entries[1]["credit_amount"]
-        )
-        self.assertEqual(current_balance, Decimal("60"))
+        self.assertEqual(ledger_entries[1]["running_balance"], Decimal("60"))
 
         # 3. 借方 50 (60 + 50 = 110)
-        current_balance += (
-            ledger_entries[2]["debit_amount"] - ledger_entries[2]["credit_amount"]
-        )
-        self.assertEqual(current_balance, Decimal("110"))
-
-        # 注意: view.pyで残高フィールドを付与していないため、テストコード側で計算して検証しています。
-        # もしview.py側で残高フィールド (e.g., 'running_balance') を付与していれば、
-        # self.assertEqual(ledger_entries[2]['running_balance'], Decimal('110')) のように検証できます。
+        self.assertEqual(ledger_entries[2]["running_balance"], Decimal("110"))

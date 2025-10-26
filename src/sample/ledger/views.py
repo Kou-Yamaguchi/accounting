@@ -126,6 +126,8 @@ class GeneralLedgerView(TemplateView):
             list(debit_lines) + list(credit_lines), key=lambda x: x.journal_entry.date
         )
         ledger_entries = []
+        running_balance = Decimal("0.00")
+
         for line in all_lines:
             je = line.journal_entry
             # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
@@ -158,12 +160,18 @@ class GeneralLedgerView(TemplateView):
             # 明細タイプによって借方・貸方金額を決定
             is_debit_entry = isinstance(line, Debit)
 
+            if is_debit_entry:
+                running_balance += line.amount
+            else:
+                running_balance -= line.amount
+
             entry = {
                 "date": je.date,
                 "summary": je.summary,
                 "counter_party": counter_party_name,
                 "debit_amount": line.amount if is_debit_entry else 0,
                 "credit_amount": line.amount if not is_debit_entry else 0,
+                "running_balance": running_balance,
             }
             ledger_entries.append(entry)
 
