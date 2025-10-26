@@ -258,7 +258,7 @@ class GeneralLedgerViewTest(TestCase):
         # テスト対象のビューにアクセスするためのURLを準備
         self.url_template = "/ledger/{account_name}/"
 
-    def create_transaction(self, entry_date, summary, debits_data, credits_data):
+    def create_journal_entry(self, entry_date, summary, debits_data, credits_data):
         """
         取引 (JournalEntry) とその明細 (Debit/Credit) を作成するヘルパー関数
         debits_data/credits_data は [(Accountオブジェクト, Decimal金額), ...] のリスト
@@ -282,7 +282,7 @@ class GeneralLedgerViewTest(TestCase):
         現金勘定をテスト対象とし、相手科目が1つの場合の借方（Debit）エントリを検証
         仕訳: 現金 100 / 売上 100
         """
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 1),
             "商品売上（現金）",
             [(self.cash, Decimal("100.00"))],  # 現金が借方
@@ -310,7 +310,7 @@ class GeneralLedgerViewTest(TestCase):
         買掛金勘定をテスト対象とし、相手科目が1つの場合の貸方（Credit）エントリを検証
         仕訳: 仕入 50 / 買掛金 50
         """
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 2),
             "商品仕入（掛）",
             [(self.purchases, Decimal("50.00"))],
@@ -340,7 +340,7 @@ class GeneralLedgerViewTest(TestCase):
         現金勘定をテスト対象とし、相手科目が複数の場合の借方エントリを検証
         仕訳: 現金 150 / 売上 100, 消耗品 50 （売上と消耗品が相手）
         """
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 3),
             "売上と備品の一部を現金受領",
             [(self.cash, Decimal("150.00"))],  # 現金が借方
@@ -367,7 +367,7 @@ class GeneralLedgerViewTest(TestCase):
         売上勘定をテスト対象とし、相手科目が複数の場合の貸方エントリを検証
         仕訳: 現金 80, 買掛金 20 / 売上 100 （現金と買掛金が相手）
         """
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 4),
             "商品売上（一部現金、一部掛）",
             [
@@ -400,7 +400,7 @@ class GeneralLedgerViewTest(TestCase):
         """
 
         # 1. 現金 / 売上 100 (残高: 借方 100)
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 10),
             "売上1",
             [(self.cash, Decimal("100"))],
@@ -408,7 +408,7 @@ class GeneralLedgerViewTest(TestCase):
         )
 
         # 2. 仕入 / 現金 40 (残高: 借方 60)
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 11),
             "仕入1",
             [(self.purchases, Decimal("40"))],
@@ -416,7 +416,7 @@ class GeneralLedgerViewTest(TestCase):
         )
 
         # 3. 現金 / 買掛金 50 (残高: 借方 110)
-        self.create_transaction(
+        self.create_journal_entry(
             date(2025, 10, 12),
             "買掛金支払い",
             [(self.cash, Decimal("50"))],
