@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from django.db.models import F, Value, CharField
+from django.db.models import F, Q, Value, CharField, Prefetch
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 from django.urls import reverse_lazy
 from django.db import transaction
@@ -109,7 +109,6 @@ class GeneralLedgerView(TemplateView):
     template_name = "ledger/general_ledger.html"  # 使用するテンプレートファイル名
 
     def get_context_data(self, **kwargs):
-        # 親クラスのコンテキストデータを取得
         context = super().get_context_data(**kwargs)
 
         # URLから勘定科目名を取得
@@ -122,37 +121,39 @@ class GeneralLedgerView(TemplateView):
 
         # 取得した勘定科目に関連する取引の科目の種類を全て取得
         # N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
-        prefetch_args = ["journal_entry__debits__account", "journal_entry__credits__account"]
-        debit_lines = Debit.objects.filter(account_id=target_account_id).prefetch_related(*prefetch_args)
-        credit_lines = Credit.objects.filter(account_id=target_account_id).prefetch_related(*prefetch_args)
-        all_lines = sorted(
-            list(debit_lines) + list(credit_lines), key=lambda x: x.journal_entry.date
+        journal_entries = JournalEntry.objects.filter(
+                Q(debits__account=account) | Q(credits__account=account)
+        ).distinct().order_by("date", "pk").prefetch_related(
+            Prefetch("debits", queryset=Debit.objects.select_related("account"), to_attr="prefetched_debits"),
+            Prefetch("credits", queryset=Credit.objects.select_related("account"), to_attr="prefetched_credits"),
         )
+
         ledger_entries = []
         running_balance = Decimal("0.00")
 
-        for line in all_lines:
-            je = line.journal_entry
+        for je in journal_entries:
             # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_accounts = set()
+            all_debits = set()
+            all_credits = set()
 
             # プリフェッチされたリレーションを利用して勘定科目を収集
-            # ここでの .all() はデータベースにクエリを発行せず、メモリ上のプリフェッチデータを利用します。
-            for debit in je.debits.all():
-                all_accounts.add(debit.account)
-            for credit in je.credits.all():
-                all_accounts.add(credit.account)
+            all_debits = set(debit.account for debit in je.prefetched_debits)
+            all_credits = set(credit.account for credit in je.prefetched_credits)
+
+            # 当該勘定科目に関連する明細行を特定
+            is_debit_entry = target_account_id in {acc.id for acc in all_debits}
 
             # ターゲット勘定科目を除外した、相手勘定科目のリスト
-            other_accounts = [
-                acc for acc in all_accounts if acc.id != target_account_id
-            ]
+            if is_debit_entry:
+                other_accounts = all_credits
+            else:
+                other_accounts = all_debits
 
             # 3. 相手勘定科目の決定ロジック (単一 vs 諸口)
             counter_party_name = ""
             if len(other_accounts) == 1:
                 # 相手勘定科目が1つの場合、その名前をセット
-                counter_party_name = other_accounts[0].name
+                counter_party_name = [acc.name for acc in other_accounts][0]
             elif len(other_accounts) > 1:
                 # 相手勘定科目が複数の場合
                 counter_party_name = "諸口"
@@ -161,19 +162,22 @@ class GeneralLedgerView(TemplateView):
                 counter_party_name = "取引エラー"
 
             # 明細タイプによって借方・貸方金額を決定
-            is_debit_entry = isinstance(line, Debit)
 
             if is_debit_entry:
-                running_balance += line.amount
+                debit_amount = je.prefetched_debits[0].amount
+                credit_amount = Decimal("0.00")
+                running_balance += debit_amount
             else:
-                running_balance -= line.amount
+                debit_amount = Decimal("0.00")
+                credit_amount = je.prefetched_credits[0].amount
+                running_balance -= credit_amount
 
             entry = {
                 "date": je.date,
                 "summary": je.summary,
                 "counter_party": counter_party_name,
-                "debit_amount": line.amount if is_debit_entry else 0,
-                "credit_amount": line.amount if not is_debit_entry else 0,
+                "debit_amount": debit_amount,
+                "credit_amount": credit_amount,
                 "running_balance": running_balance,
             }
             ledger_entries.append(entry)
