@@ -4,9 +4,12 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView, T
 from django.urls import reverse_lazy
 from django.db import transaction
 from decimal import Decimal
+from datetime import date, datetime, timedelta
+from calendar import monthrange
 
 from ledger.models import JournalEntry, Account, Debit, Credit
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
+from ledger.services import calculate_monthly_balance
 
 
 class JournalEntryListView(ListView):
@@ -176,5 +179,47 @@ class GeneralLedgerView(TemplateView):
             ledger_entries.append(entry)
 
         context["ledger_entries"] = ledger_entries
+
+        return context
+
+
+class CashBookView(TemplateView):
+    """
+    現金出納帳を表示するView。
+    """
+
+    template_name = "ledger/cash_book.html"
+
+    # 拡張性: このTARGET_ACCOUNT_NAMEを変更するだけで、当座預金出納帳などに転用可能
+    TARGET_ACCOUNT_NAME = "現金"
+
+    # 懸念事項2, 3 の解決策として、DjangoのViewキャッシュや信号処理を実装すべきですが、
+    # ここではまず計算ロジックに集中します。
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # URLから年と月を取得 (例: /cash_book/2025/10/)
+        try:
+            year = int(self.kwargs.get("year", datetime.now().year))
+            month = int(self.kwargs.get("month", datetime.now().month))
+        except ValueError:
+            # パラメータが無効な場合、今月をデフォルトとする
+            now = datetime.now()
+            year, month = now.year, now.month
+
+        # サービス関数を呼び出し、計算結果を取得
+        result = calculate_monthly_balance(self.TARGET_ACCOUNT_NAME, year, month)
+
+        # エラー処理
+        if "error" in result:
+            context["error_message"] = result["error"]
+            context["book_data"] = []
+        else:
+            context["book_data"] = result["data"]
+
+        # テンプレート表示用の情報
+        context["account_name"] = self.TARGET_ACCOUNT_NAME
+        context["current_month"] = datetime(year, month, 1)
 
         return context
