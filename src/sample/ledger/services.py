@@ -14,7 +14,7 @@ def get_initial_balance(account_id: int) -> Decimal:
     try:
         return InitialBalance.objects.get(account_id=account_id).balance
     except InitialBalance.DoesNotExist:
-        return 0
+        return Decimal("0.00")
 
 
 def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
@@ -136,10 +136,10 @@ def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
     for entry in journal_entries:
         record = {
             "date": entry.date,
-            "income": 0,
-            "expense": 0,
+            "income": Decimal("0.00"),
+            "expense": Decimal("0.00"),
             "summary": entry.summary,  # まずは総合摘要を入れておく
-            "balance": 0,
+            "balance": Decimal("0.00"),
         }
 
         # 当該取引で対象科目に関する明細を抽出
@@ -180,9 +180,9 @@ def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
         {
             "date": end_of_month,
             "summary": "次月繰越",
-            "income": 0,
+            "income": Decimal("0.00"),
             "expense": ending_balance,  # 帳簿上、最終的な残高は支出側に入れる
-            "balance": 0,
+            "balance": Decimal("0.00"),
         }
     )
 

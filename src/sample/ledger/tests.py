@@ -335,6 +335,61 @@ class GeneralLedgerViewTest(TestCase):
     # 2. 1 vs 多 (複合仕訳) のテスト
     # ----------------------------------------------------
 
+    def test_multiple_entry_debit_side(self):
+        """
+        現金勘定をテスト対象とし、相手科目が複数の場合の借方エントリを検証
+        仕訳: 現金 150 / 売上 100, 消耗品 50 （売上と消耗品が相手）
+        """
+        self.create_journal_entry(
+            date(2025, 10, 3),
+            "売上と備品の一部を現金受領",
+            [(self.cash, Decimal("150.00"))],  # 相手が1つ
+            [
+                (self.sales, Decimal("100.00")),
+                (self.supplies, Decimal("50.00")),
+            ],  # 現金が借方
+        )
+
+        request = self.factory.get(self.url_template.format(account_name="売上"))
+        response = GeneralLedgerView.as_view()(request, account_name="売上")
+
+        ledger_entries = response.context_data["ledger_entries"]
+        self.assertEqual(len(ledger_entries), 1)
+
+        entry = ledger_entries[0]
+        # チェック項目
+        self.assertEqual(entry["counter_party"], "現金") # 相手勘定が単一科目名であること  
+        self.assertEqual(entry["debit_amount"], Decimal("0.00"))
+        self.assertEqual(entry["credit_amount"], Decimal("100.00"))
+
+    def test_multiple_entry_credit_side(self):
+        """
+        現金勘定をテスト対象とし、相手科目が複数の場合の貸方エントリを検証
+        仕訳: 現金 80, 買掛金 20 / 売上 100 （現金と買掛金が相手）
+        """
+        self.create_journal_entry(
+            date(2025, 10, 4),
+            "商品売上（一部現金、一部掛）",
+            [
+                (self.cash, Decimal("80.00")),
+                (self.accounts_payable, Decimal("20.00")),
+            ],  # 相手が2科目
+            [(self.sales, Decimal("100.00"))],  # 売上が貸方
+        )
+
+        request = self.factory.get(self.url_template.format(account_name="現金"))
+        response = GeneralLedgerView.as_view()(request, account_name="現金")
+
+        ledger_entries = response.context_data["ledger_entries"]
+        self.assertEqual(len(ledger_entries), 1)
+
+        entry = ledger_entries[0]
+        # チェック項目
+        self.assertEqual(entry["counter_party"], "売上")  # 相手勘定が売上であること
+        self.assertEqual(entry["debit_amount"], Decimal("80.00"))
+        self.assertEqual(entry["credit_amount"], Decimal("0.00"))
+
+
     def test_single_vs_multiple_entry_debit_side(self):
         """
         現金勘定をテスト対象とし、相手科目が複数の場合の借方エントリを検証
@@ -389,6 +444,7 @@ class GeneralLedgerViewTest(TestCase):
         self.assertEqual(entry["debit_amount"], Decimal("0"))
         self.assertEqual(entry["credit_amount"], Decimal("100.00"))
 
+
     # ----------------------------------------------------
     # 3. 残高計算の検証
     # ----------------------------------------------------
@@ -440,3 +496,25 @@ class GeneralLedgerViewTest(TestCase):
 
         # 3. 借方 50 (60 + 50 = 110)
         self.assertEqual(ledger_entries[2]["running_balance"], Decimal("110"))
+
+
+class CashBookViewTest(TestCase):
+    """
+    CashBookViewが返す現金出納帳のデータ内容をテストする
+    """
+
+    def setUp(self):
+        # テストに必要な初期データ（勘定科目）を作成
+        self.factory = RequestFactory()
+
+        self.cash = Account.objects.create(name="現金", type="Asset")
+        self.sales = Account.objects.create(name="売上", type="Revenue")
+        self.purchases = Account.objects.create(name="仕入", type="Expense")
+
+        # テスト対象のビューにアクセスするためのURLを準備
+        self.url_template = "/ledger/cash_book/{year}/{month}/"
+
+    # ここに現金出納帳特有のテストケースを追加していく
+    # 例: 入金・出金の分類、月次集計、繰越残高の計算など
+
+    # テストケースはGeneralLedgerViewTestと同様に実装可能
