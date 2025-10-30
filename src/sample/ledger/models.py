@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from datetime import date, datetime
 
 ACCOUNT_TYPE_CHOICES = [
     ("asset", "資産"),
@@ -148,3 +149,21 @@ class Credit(models.Model):
 
     def __str__(self):
         return f"Credit {self.amount} — {self.account}"
+
+
+class InitialBalance(models.Model):
+    """
+    期首残高、またはシステム導入時の開始残高を管理するモデル。
+    """
+
+    account = models.OneToOneField(
+        Account, on_delete=models.CASCADE, primary_key=True, verbose_name="勘定科目"
+    )
+    balance = models.IntegerField(default=0, verbose_name="残高")
+    start_date = models.DateField(
+        default=date(datetime.now().year, 4, 1), verbose_name="会計期間開始日"
+    )
+
+    class Meta:
+        verbose_name = "期首残高"
+        verbose_name_plural = "期首残高"
