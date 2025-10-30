@@ -547,16 +547,11 @@ class CashBookCalculationTest(TestCase):
             "前月繰越",
             "前月繰越の行が存在すること",
         )
-        # InitialBalanceがない場合はエラーメッセージが出るべきだが、サービス内のロジックにより「期首残高が設定されていません。」というエラーを出す仕様としている。
+        # InitialBalanceがない場合は「期首残高が設定されていません。」という警告を出す仕様としている。(エラーは出さない)
         # 今回はテスト用に、InitialBalanceをあえて作らずにテストする。
-
-        # InitialBalanceがない場合はエラーが出る仕様にしたため、テストを少し変更
-        # 期首残高がない場合、計算が実行されないことを確認
-        self.assertIn(
-            "error",
-            result_no_initial,
-            "InitialBalanceがない場合、エラーメッセージが返されること",
-        )
+        result_no_initial = calculate_monthly_balance("現金", 2025, 1)
+        self.assertEqual(result_no_initial["data"][0]["balance"], 0)
+        self.assertEqual(result_no_initial["ending_balance"], 0)
 
         # --- ここから、InitialBalanceが設定されていることを前提とする ---
 
@@ -713,9 +708,9 @@ class CashBookCalculationTest(TestCase):
     def test_month_boundary_transactions(self):
         """集計期間の境界（前月末日、当月1日、当月末日、翌月1日）の取引が正しく含まれるか/除外されるか"""
 
-        # 2025/07/01期首、残高 5000
+        # 2025/06/01期首、残高 5000
         InitialBalance.objects.create(
-            account=self.cash_account, balance=5000, start_date=date(2025, 7, 1)
+            account=self.cash_account, balance=5000, start_date=date(2025, 6, 1)
         )
 
         # 7月集計
