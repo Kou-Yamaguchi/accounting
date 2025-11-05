@@ -1,9 +1,11 @@
+from decimal import Decimal
 from datetime import date
+
 from dateutil.relativedelta import relativedelta
 from django.db.models import Q
-from .models import JournalEntry, InitialBalance, Account, Debit, Credit
 from django.db.models import Sum
-from decimal import Decimal
+
+from .models import JournalEntry, InitialBalance, Account, Debit, Credit
 
 
 def get_initial_balance(account_id: int) -> Decimal:

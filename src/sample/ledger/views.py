@@ -1,3 +1,7 @@
+from decimal import Decimal
+from datetime import date, datetime, timedelta
+from calendar import monthrange
+
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch
 from django.views.generic import (
@@ -9,14 +13,12 @@ from django.views.generic import (
 )
 from django.urls import reverse_lazy
 from django.db import transaction
-from decimal import Decimal
-from datetime import date, datetime, timedelta
-from calendar import monthrange
 from django.core.exceptions import ImproperlyConfigured
 
 from ledger.models import JournalEntry, Account, Debit, Credit
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import calculate_monthly_balance
+from enums.error_messages import ErrorMessages
 
 
 class JournalEntryListView(ListView):
@@ -72,7 +74,7 @@ class JournalEntryFormMixin:
         total_debit = getattr(debit_formset, "total_amount", Decimal("0.00"))
         total_credit = getattr(credit_formset, "total_amount", Decimal("0.00"))
         if total_debit != total_credit:
-            form.add_error(None, "借方合計と貸方合計は一致する必要があります。")
+            form.add_error(None, ErrorMessages.MESSAGE_0001.value)
             return self.form_invalid(form)
 
         # トランザクション内で親子を保存
@@ -231,7 +233,7 @@ class AbstractCashBookView(TemplateView):
     def get_context_data(self, **kwargs):
         if not self.TARGET_ACCOUNT_NAME:
             raise ImproperlyConfigured(
-                "TARGET_ACCOUNT_NAME をサブクラスで設定してください。"
+                ErrorMessages.MESSAGE_0002.value
             )
 
         context = super().get_context_data(**kwargs)

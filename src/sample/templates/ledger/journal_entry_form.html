@@ -1,3 +1,7 @@
+{% extends "base.html" %}
+
+{% block main %}
+
 <h2>仕訳登録・編集</h2>
 <form method="post">
   {% csrf_token %}
@@ -26,3 +30,5 @@
 
   <button type="submit">保存</button>
 </form>
+
+{% endblock %}

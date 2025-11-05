@@ -1,12 +1,14 @@
+from datetime import date
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
-from datetime import date
-from decimal import Decimal
 
 from ledger.models import JournalEntry, Debit, Credit, Account, InitialBalance
 from ledger.views import GeneralLedgerView
 from ledger.services import calculate_monthly_balance
+from enums.error_messages import ErrorMessages
 
 
 class JournalEntryViewTest(TestCase):
@@ -88,6 +90,7 @@ class JournalEntryViewTest(TestCase):
 
     def test_journal_entry_list_view(self):
         response = self.client.get(reverse("journal_entry_list"))
+        self.assertTemplateUsed(response, "ledger/journal_entry_list.html")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "初期取引")
 
@@ -216,7 +219,7 @@ class JournalEntryValidationTest(TestCase):
         data = self.build_post(date="", summary="", debit_items=[], credit_items=[])
         response = self.client.post("/ledger/new/", data)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "このフィールドは必須です")
+        self.assertContains(response, ErrorMessages.REQUIRED.value)
 
     def test_negative_amount_debit(self):
         data = self.build_post(
@@ -227,7 +230,7 @@ class JournalEntryValidationTest(TestCase):
         )
         response = self.client.post("/ledger/new/", data)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "金額は正の値でなければなりません。")
+        self.assertContains(response, ErrorMessages.MESSAGE_0003.value)
 
     def test_unbalanced_journal_entry(self):
         data = self.build_post(
@@ -238,7 +241,7 @@ class JournalEntryValidationTest(TestCase):
         )
         response = self.client.post("/ledger/new/", data)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "借方合計と貸方合計は一致する必要があります。")
+        self.assertContains(response, ErrorMessages.MESSAGE_0001.value)
 
 
 class GeneralLedgerViewTest(TestCase):
@@ -497,28 +500,6 @@ class GeneralLedgerViewTest(TestCase):
 
         # 3. 借方 50 (60 + 50 = 110)
         self.assertEqual(ledger_entries[2]["running_balance"], Decimal("110"))
-
-
-# class CashBookViewTest(TestCase):
-#     """
-#     CashBookViewが返す現金出納帳のデータ内容をテストする
-#     """
-
-#     def setUp(self):
-#         # テストに必要な初期データ（勘定科目）を作成
-#         self.factory = RequestFactory()
-
-#         self.cash = Account.objects.create(name="現金", type="Asset")
-#         self.sales = Account.objects.create(name="売上", type="Revenue")
-#         self.purchases = Account.objects.create(name="仕入", type="Expense")
-
-#         # テスト対象のビューにアクセスするためのURLを準備
-#         self.url_template = "/ledger/cash_book/{year}/{month}/"
-
-# ここに現金出納帳特有のテストケースを追加していく
-# 例: 入金・出金の分類、月次集計、繰越残高の計算など
-
-# テストケースはGeneralLedgerViewTestと同様に実装可能
 
 
 class CashBookCalculationTest(TestCase):
