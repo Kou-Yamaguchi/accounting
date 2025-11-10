@@ -176,15 +176,59 @@ class InitialBalance(models.Model):
         verbose_name_plural = "Initial Balances"
 
 
+class Item(models.Model):
+    """
+    商品・サービスを管理するモデル。
+    """
+
+    name = models.CharField(max_length=255, verbose_name="商品名")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="items_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="items_updated",
+    )
+
+    class Meta:
+        verbose_name = "Item"
+        verbose_name_plural = "Items"
+
+    def __str__(self):
+        return self.name
+
+
 class SalesDetail(models.Model):
     """
     売上明細を管理するモデル。
     """
-
-    description = models.CharField(max_length=255, verbose_name="説明")
-    amount = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="金額")
+    quantity = models.IntegerField(verbose_name="数量")
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="単価")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    item_id = models.ForeignKey(
+        Item,
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        related_name="sales_items",
+    )
+    journal_entry_id = models.ForeignKey(
+        JournalEntry,
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        related_name="sales_journal_entries",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -205,7 +249,7 @@ class SalesDetail(models.Model):
         verbose_name_plural = "Sales Details"
 
     def __str__(self):
-        return f"{self.description} - {self.amount}"
+        return f"{self.item_id} - {self.quantity} - {self.unit_price}"
 
 
 class PurchaseDetail(models.Model):
@@ -213,10 +257,24 @@ class PurchaseDetail(models.Model):
     仕入明細を管理するモデル。
     """
 
-    description = models.CharField(max_length=255, verbose_name="説明")
-    amount = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="金額")
+    quantity = models.IntegerField(verbose_name="数量")
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="単価")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    item_id = models.ForeignKey(
+        Item,
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        related_name="purchase_items",
+    )
+    journal_entry_id = models.ForeignKey(
+        JournalEntry,
+        null=False,
+        blank=False,
+        on_delete=models.CASCADE,
+        related_name="purchase_journal_entries",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -237,7 +295,7 @@ class PurchaseDetail(models.Model):
         verbose_name_plural = "Purchase Details"
 
     def __str__(self):
-        return f"{self.description} - {self.amount}"
+        return f"{self.item_id} - {self.quantity} - {self.unit_price}"
 
 
 class Company(models.Model):
