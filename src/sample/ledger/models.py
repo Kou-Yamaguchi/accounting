@@ -53,6 +53,13 @@ class JournalEntry(models.Model):
     summary = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    company_id = models.ForeignKey(
+        "Company",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="companies",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -165,5 +172,100 @@ class InitialBalance(models.Model):
     )
 
     class Meta:
-        verbose_name = "期首残高"
-        verbose_name_plural = "期首残高"
+        verbose_name = "Initial Balance"
+        verbose_name_plural = "Initial Balances"
+
+
+class SalesDetail(models.Model):
+    """
+    売上明細を管理するモデル。
+    """
+
+    description = models.CharField(max_length=255, verbose_name="説明")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="金額")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sales_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sales_updated",
+    )
+
+    class Meta:
+        verbose_name = "Sales Detail"
+        verbose_name_plural = "Sales Details"
+
+    def __str__(self):
+        return f"{self.description} - {self.amount}"
+
+
+class PurchaseDetail(models.Model):
+    """
+    仕入明細を管理するモデル。
+    """
+
+    description = models.CharField(max_length=255, verbose_name="説明")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="金額")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="purchase_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="purchase_updated",
+    )
+
+    class Meta:
+        verbose_name = "Purchase Detail"
+        verbose_name_plural = "Purchase Details"
+
+    def __str__(self):
+        return f"{self.description} - {self.amount}"
+
+
+class Company(models.Model):
+    """
+    会社情報を管理するモデル。
+    """
+
+    name = models.CharField(max_length=255, verbose_name="会社名")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="company_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="company_updated",
+    )
+
+    class Meta:
+        verbose_name = "Company"
+        verbose_name_plural = "Companies"
+
+    def __str__(self):
+        return self.name
