@@ -1,3 +1,7 @@
+{% extends "base.html" %}
+
+{% block main %}
+
 <h2>仕訳一覧</h2>
 <a href="{% url 'journal_entry_new' %}">新規登録</a>
 <ul>
@@ -9,3 +13,5 @@
   </li>
   {% endfor %}
 </ul>
+
+{% endblock %}

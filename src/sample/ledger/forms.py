@@ -1,9 +1,10 @@
-from django import forms
-from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
 
-from ledger.models import JournalEntry, Debit, Credit
+from django import forms
+from django.utils.translation import gettext_lazy as _
 
+from ledger.models import JournalEntry, Debit, Credit
+from enums.error_messages import ErrorMessages
 
 class JournalEntryForm(forms.ModelForm):
     class Meta:
@@ -20,7 +21,7 @@ class DebitForm(forms.ModelForm):
         amount = self.cleaned_data.get("amount")
         if amount is not None and amount <= Decimal("0"):
             raise forms.ValidationError(
-                _("金額は正の値でなければなりません。"),
+                _(ErrorMessages.MESSAGE_0003.value),
                 code="invalid",
                 params={"amount": amount},
             )
@@ -32,7 +33,7 @@ class DebitForm(forms.ModelForm):
         amount = cleaned_data.get("amount")
         if (account and amount is None) or (amount and account is None):
             raise forms.ValidationError(
-                _("勘定科目と金額の両方を入力してください。"),
+                _(ErrorMessages.MESSAGE_0004.value),
                 code="invalid",
             )
         return cleaned_data
@@ -47,7 +48,7 @@ class CreditForm(forms.ModelForm):
         amount = self.cleaned_data.get("amount")
         if amount is not None and amount <= Decimal("0"):
             raise forms.ValidationError(
-                _("金額は正の値でなければなりません。"),
+                _(ErrorMessages.MESSAGE_0003.value),
                 code="invalid",
                 params={"amount": amount},
             )
@@ -59,7 +60,7 @@ class CreditForm(forms.ModelForm):
         amount = cleaned_data.get("amount")
         if (account and amount is None) or (amount and account is None):
             raise forms.ValidationError(
-                _("勘定科目と金額の両方を入力してください。"),
+                _(ErrorMessages.MESSAGE_0004.value),
                 code="invalid",
                 params={"account": account, "amount": amount},
             )
@@ -75,7 +76,7 @@ class BaseTotalFormSet(forms.BaseInlineFormSet):
             if form.cleaned_data and not form.cleaned_data.get("DELETE", False):
                 amount = form.cleaned_data.get("amount")
                 if amount is None or amount <= 0:
-                    raise forms.ValidationError("金額は正の数を入力してください。")
+                    raise forms.ValidationError(ErrorMessages.MESSAGE_0003.value)
                 total_amount += amount
 
         self.total_amount = total_amount

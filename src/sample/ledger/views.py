@@ -1,15 +1,24 @@
-from django.shortcuts import render, get_object_or_404
-from django.db.models import F, Q, Value, CharField, Prefetch
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
-from django.urls import reverse_lazy
-from django.db import transaction
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 from calendar import monthrange
 
+from django.shortcuts import render, get_object_or_404
+from django.db.models import F, Q, Value, CharField, Prefetch
+from django.views.generic import (
+    ListView,
+    CreateView,
+    UpdateView,
+    DeleteView,
+    TemplateView,
+)
+from django.urls import reverse_lazy
+from django.db import transaction
+from django.core.exceptions import ImproperlyConfigured
+
 from ledger.models import JournalEntry, Account, Debit, Credit
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import calculate_monthly_balance
+from enums.error_messages import ErrorMessages
 
 
 class JournalEntryListView(ListView):
@@ -65,7 +74,7 @@ class JournalEntryFormMixin:
         total_debit = getattr(debit_formset, "total_amount", Decimal("0.00"))
         total_credit = getattr(credit_formset, "total_amount", Decimal("0.00"))
         if total_debit != total_credit:
-            form.add_error(None, "借方合計と貸方合計は一致する必要があります。")
+            form.add_error(None, ErrorMessages.MESSAGE_0001.value)
             return self.form_invalid(form)
 
         # トランザクション内で親子を保存
@@ -121,11 +130,24 @@ class GeneralLedgerView(TemplateView):
 
         # 取得した勘定科目に関連する取引の科目の種類を全て取得
         # N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
-        journal_entries = JournalEntry.objects.filter(
+        journal_entries = (
+            JournalEntry.objects.filter(
                 Q(debits__account=account) | Q(credits__account=account)
-        ).distinct().order_by("date", "pk").prefetch_related(
-            Prefetch("debits", queryset=Debit.objects.select_related("account"), to_attr="prefetched_debits"),
-            Prefetch("credits", queryset=Credit.objects.select_related("account"), to_attr="prefetched_credits"),
+            )
+            .distinct()
+            .order_by("date", "pk")
+            .prefetch_related(
+                Prefetch(
+                    "debits",
+                    queryset=Debit.objects.select_related("account"),
+                    to_attr="prefetched_debits",
+                ),
+                Prefetch(
+                    "credits",
+                    queryset=Credit.objects.select_related("account"),
+                    to_attr="prefetched_credits",
+                ),
+            )
         )
 
         ledger_entries = []
@@ -187,43 +209,66 @@ class GeneralLedgerView(TemplateView):
         return context
 
 
-class CashBookView(TemplateView):
+class AbstractCashBookView(TemplateView):
     """
-    現金出納帳を表示するView。
+    出納帳の共通処理を提供する抽象ビュー。
+    サブクラスは TARGET_ACCOUNT_NAME を設定するだけで利用可能。
+    戻り値のコンテキスト:
+      - book_data: [{ "date", "summary", "income", "expense", "balance" }, ...]
+      - account_name, current_month, next_month_carryover, error_message (必要時)
     """
 
     template_name = "ledger/cash_book.html"
+    TARGET_ACCOUNT_NAME = None  # サブクラスで設定すること
 
-    # 拡張性: このTARGET_ACCOUNT_NAMEを変更するだけで、当座預金出納帳などに転用可能
-    TARGET_ACCOUNT_NAME = "現金"
-
-    # 懸念事項2, 3 の解決策として、DjangoのViewキャッシュや信号処理を実装すべきですが、
-    # ここではまず計算ロジックに集中します。
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        # URLから年と月を取得 (例: /cash_book/2025/10/)
+    def _parse_year_month(self):
         try:
             year = int(self.kwargs.get("year", datetime.now().year))
             month = int(self.kwargs.get("month", datetime.now().month))
-        except ValueError:
-            # パラメータが無効な場合、今月をデフォルトとする
+        except (ValueError, TypeError):
             now = datetime.now()
             year, month = now.year, now.month
+        return year, month
 
-        # サービス関数を呼び出し、計算結果を取得
+    def get_context_data(self, **kwargs):
+        if not self.TARGET_ACCOUNT_NAME:
+            raise ImproperlyConfigured(
+                ErrorMessages.MESSAGE_0002.value
+            )
+
+        context = super().get_context_data(**kwargs)
+        year, month = self._parse_year_month()
+
+        # サービスに処理を委譲（サービスはdictで data/ending_balance または error を返す想定）
         result = calculate_monthly_balance(self.TARGET_ACCOUNT_NAME, year, month)
 
-        # エラー処理
         if "error" in result:
             context["error_message"] = result["error"]
             context["book_data"] = []
+            context["next_month_carryover"] = None
         else:
-            context["book_data"] = result["data"]
+            # services.calculate_monthly_balance の返却スキーマに合わせて取り出す
+            context["book_data"] = result.get("data", [])
+            context["next_month_carryover"] = result.get("ending_balance")
 
-        # テンプレート表示用の情報
         context["account_name"] = self.TARGET_ACCOUNT_NAME
         context["current_month"] = datetime(year, month, 1)
-
         return context
+
+
+class CashBookView(AbstractCashBookView):
+    """現金出納帳"""
+
+    TARGET_ACCOUNT_NAME = "現金"
+
+
+class CurrentAccountCashBookView(AbstractCashBookView):
+    """当座預金出納帳"""
+
+    TARGET_ACCOUNT_NAME = "当座預金"
+
+
+class PettyCashBookView(AbstractCashBookView):
+    """小口現金出納帳"""
+
+    TARGET_ACCOUNT_NAME = "小口現金"

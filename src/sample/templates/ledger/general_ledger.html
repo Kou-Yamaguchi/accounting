@@ -1,3 +1,7 @@
+{% extends "base.html" %}
+
+{% block main %}
+
 <h2>総勘定元帳</h2>
 <h3>勘定科目: {{ account_name }}</h3>
 <table>
@@ -20,3 +24,5 @@
     {% endfor %}
   </tbody>
 </table>
+
+{% endblock %}
