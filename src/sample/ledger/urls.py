@@ -9,6 +9,7 @@ from ledger.views import (
     CashBookView,
     CurrentAccountCashBookView,
     PettyCashBookView,
+    PurchaseBookView
 )
 
 urlpatterns = [
@@ -23,4 +24,6 @@ urlpatterns = [
     path("cash_book/current/", CurrentAccountCashBookView.as_view(), name="current_account_cash_book_current"),
     path("cash_book/petty/<int:year>/<int:month>/", PettyCashBookView.as_view(), name="petty_cash_book"),
     path("cash_book/petty/", PettyCashBookView.as_view(), name="petty_cash_book_current"),
+    path("purchase_book/<int:year>/<int:month>/", PurchaseBookView.as_view(), name="purchase_book"),
+    path("purchase_book/", PurchaseBookView.as_view(), name="purchase_book_current"),
 ]

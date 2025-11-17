@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from django.db.models import Q
 from django.db.models import Sum
 
-from .models import JournalEntry, InitialBalance, Account, Debit, Credit
+from .models import JournalEntry, InitialBalance, Account, Debit, Credit, PurchaseDetail, Item, Company
 
 
 def get_initial_balance(account_id: int) -> Decimal:
@@ -189,3 +189,7 @@ def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
     )
 
     return {"data": book_data, "ending_balance": ending_balance}
+
+
+def generate_purchase_book(year: int, month: int) -> list:
+    pass
