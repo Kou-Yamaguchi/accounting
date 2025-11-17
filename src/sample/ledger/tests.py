@@ -5,8 +5,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
 
-from ledger.models import JournalEntry, Debit, Credit, Account, InitialBalance
-from ledger.views import GeneralLedgerView
+from ledger.models import JournalEntry, Debit, Credit, Account, InitialBalance, Item, SalesDetail, PurchaseDetail, Company
+from ledger.views import GeneralLedgerView, PurchaseBookView, PurchaseBookEntry
 from ledger.services import calculate_monthly_balance
 from enums.error_messages import ErrorMessages
 
@@ -783,3 +783,239 @@ class CashBookCalculationTest(TestCase):
             "売上",
             "summaryが空欄でも相手勘定科目が摘要になること",
         )
+
+
+class PurchaseBookViewTest(TestCase):
+    """
+    PurchaseBookViewのテスト
+    """
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="testuser", password="testpass"
+        )
+        self.client.force_login(self.user)
+
+    # 必要なマスタデータを作成
+    @classmethod
+    def setUpTestData(cls):
+        cls.purchase = Account.objects.create(name="仕入")
+        cls.accounts_payable = Account.objects.create(name="買掛金")
+        cls.cash = Account.objects.create(name="現金")
+
+        cls.co_a = Company.objects.create(name="甲社")
+        cls.co_b = Company.objects.create(name="乙社")
+
+        cls.item_y = Item.objects.create(name="Y商品")
+        cls.item_z = Item.objects.create(name="Z商品")
+
+    def create_journal_entry(
+        self,
+        date_str,
+        company,
+        summary,
+        debit_account,
+        debit_amount,
+        credit_account,
+        credit_amount,
+    ):
+        """仕訳と明細を作成するヘルパー関数
+
+        Args:
+            date_str (str): 日付
+
+        """
+        je = JournalEntry.objects.create(
+            date=date.fromisoformat(date_str), company=company, summary=summary
+        )
+        Debit.objects.create(
+            journal_entry=je, account=debit_account, amount=debit_amount
+        )
+        Credit.objects.create(
+            journal_entry=je, account=credit_account, amount=credit_amount
+        )
+        return je
+
+    # --- ユーザーが要求した基本的なケースのテスト ---
+
+    def test_basic_purchase_and_total(self):
+        """1ヶ月分の正常な仕入と総仕入高の集計テスト"""
+
+        # 2025/4/10: 甲社から掛仕入 (仕入 3000 / 買掛金 3000)
+        je1 = self.create_journal_entry(
+            "2025-04-10",
+            self.co_a,
+            "掛仕入",
+            self.purchase,
+            3000,
+            self.accounts_payable,
+            3000,
+        )
+        PurchaseDetail.objects.create(
+            journal_entry=je1, item=self.item_y, quantity=10, unit_price=300
+        )
+
+        # 2025/4/20: 乙社から現金仕入 (仕入 5000 / 現金 5000)
+        je2 = self.create_journal_entry(
+            "2025-04-20", self.co_b, "現金仕入", self.purchase, 5000, self.cash, 5000
+        )
+        PurchaseDetail.objects.create(
+            journal_entry=je2, item=self.item_z, quantity=5, unit_price=1000
+        )
+
+        response = self.client.get(reverse("purchase_book", args=[2025, 4]))
+
+        closing_entry = response.context["purchase_book"].closing_entry
+
+        # 総仕入高の確認 (3000 + 5000 = 8000)
+        self.assertEqual(
+            closing_entry.total_purchase, 8000, "総仕入高が正しく集計されていること"
+        )
+        # 純仕入高の確認 (戻しがないため8000)
+        self.assertEqual(
+            closing_entry.net_purchase, 8000, "純仕入高が正しく集計されていること"
+        )
+        # データ件数 (取引2件, 明細2件 + 総仕入高/戻し/純仕入高の行はサービス側で集計) -> 2つの取引ヘッダー行と2つの明細行
+        # self.assertEqual(
+        #     len(response.context["book_entries"]["details"]), 4, "取引2件のヘッダーと明細が正しく作成されていること"
+        # )
+
+        # 明細行の内訳金額の確認
+        # self.assertEqual(
+        #     response.context["book_entries"]["details"][1]["total_amount"], 3000, "Y商品の内訳金額が正しいこと"
+        # )
+
+    # --- 追加ケース A: 仕入戻し・値引き取引の処理 ---
+    def test_purchase_returns(self):
+        """仕入戻し（貸方 仕入）が正しくマイナスとして処理され、純仕入高に反映されること"""
+
+        # 2025/5/05: 通常仕入 (仕入 10000 / 買掛金 10000)
+        je3 = self.create_journal_entry(
+            "2025-05-05",
+            self.co_a,
+            "掛仕入",
+            self.purchase,
+            10000,
+            self.accounts_payable,
+            10000,
+        )
+        PurchaseDetail.objects.create(
+            journal_entry=je3, item=self.item_y, quantity=20, unit_price=500
+        )
+
+        # 2025/5/15: 仕入戻し (買掛金 2000 / 仕入 2000) -> 貸方に仕入が来る
+        je4 = self.create_journal_entry(
+            "2025-05-15",
+            self.co_a,
+            "品違いによる返品",
+            self.accounts_payable,
+            2000,
+            self.purchase,
+            2000,
+        )
+        PurchaseDetail.objects.create(
+            journal_entry=je4, item=self.item_y, quantity=4, unit_price=500
+        )  # 明細もマイナス分を作成
+
+        # response = self.client.get("/ledger/purchase_book/2025/5/")
+        response = self.client.get(reverse("purchase_book", args=[2025, 5]))
+
+        closing_entry = response.context["purchase_book"].closing_entry
+
+        # 総仕入高の確認
+        self.assertEqual(
+            closing_entry.total_purchase, 10000, "総仕入高には通常仕入のみが計上されること"
+        )
+        # 仕入戻し高の確認
+        self.assertEqual(
+            closing_entry.total_returns, 2000, "仕入戻し高が正しく計上されること"
+        )
+        # 純仕入高の確認 (10000 - 2000 = 8000)
+        self.assertEqual(
+            closing_entry.net_purchase, 8000, "純仕入高が正しく計算されていること"
+        )
+
+        # 仕入戻し取引の表示内容確認
+        return_header: PurchaseBookEntry = response.context["purchase_book"].book_entries[1]  # 2件目の取引が戻し
+        self.assertTrue(
+            return_header.is_return, "仕入戻し取引であると識別されていること"
+        )
+        # self.assertEqual(
+        #     return_header["main_summary"], "掛戻し", "仕入戻しの摘要が正しいこと"
+        # )
+
+    # --- 追加ケース B: 仕訳と明細の不一致 ---
+    def test_mismatch_validation(self):
+        """仕訳の金額と明細の合計金額が一致しない場合にエラーが記録されること"""
+
+        # 2025/6/01: 不一致仕入 (仕入 10000 / 買掛金 10000)
+        je5 = self.create_journal_entry(
+            "2025-06-01",
+            self.co_b,
+            "金額不一致テスト",
+            self.purchase,
+            10000,
+            self.accounts_payable,
+            10000,
+        )
+        # 明細の合計は 10個 * 500 = 5000 (仕訳金額10000と不一致)
+        PurchaseDetail.objects.create(
+            journal_entry=je5, item=self.item_z, quantity=10, unit_price=500
+        )
+
+        response = self.client.get(reverse("purchase_book", args=[2025, 6]))
+
+        # エラーメッセージがヘッダー行に記録されていること
+        # header_line = response.context["data"][0]
+        # self.assertIsNotNone(
+        #     header_line["error"],
+        #     "金額不一致の場合、エラーメッセージが記録されていること",
+        # )
+        self.assertIn(
+            "内訳金額合計が仕訳金額と一致しません。",
+            response.context["error"],
+            "エラーメッセージに'金額不一致'が含まれていること",
+        )
+
+    # --- 追加ケース C: 複数商品取引の処理 ---
+    # def test_multi_item_transaction(self):
+    #     """一つの仕訳で複数の商品を扱った場合、複数行として正しく表示されること"""
+
+    #     # 2025/7/01: 複数商品仕入 (仕入 760 / 買掛金 760) -> 添付画像と同じ金額
+    #     je6 = self.create_journal_entry(
+    #         "2025-07-01",
+    #         self.co_b,
+    #         "複数商品仕入",
+    #         self.purchase,
+    #         760,
+    #         self.accounts_payable,
+    #         760,
+    #     )
+    #     PurchaseDetail.objects.create(
+    #         journal_entry=je6, item=self.item_y, quantity=8, unit_price=50
+    #     )  # 内訳 400
+    #     PurchaseDetail.objects.create(
+    #         journal_entry=je6, item=self.item_z, quantity=6, unit_price=60
+    #     )  # 内訳 360
+
+    #     response = self.client.get(reverse("purchase_book", args=[2025, 7]))
+    #     data = response.context["data"]
+
+    #     # データ件数 (ヘッダー1行 + 明細2行 + 総仕入/戻し/純仕入の集計行)
+    #     self.assertEqual(
+    #         len(data), 3 + 3, "取引1件（明細2件）で3行のデータが作成されていること"
+    #     )
+
+    #     # ヘッダー行 (0行目)
+    #     self.assertEqual(data[0]["type"], "header")
+    #     self.assertEqual(data[0]["company_name"], "乙社")
+    #     self.assertEqual(data[0]["total_amount"], 760)
+
+    #     # 明細1行目 (1行目)
+    #     self.assertEqual(data[1]["type"], "detail")
+    #     self.assertEqual(data[1]["item_name"], "Y商品")
+    #     self.assertEqual(data[1]["sub_total"], 400)
+
+    #     # 明細2行目 (2行目)
+    #     self.assertEqual(data[2]["type"], "detail")
+    #     self.assertEqual(data[2]["item_name"], "Z商品")
+    #     self.assertEqual(data[2]["sub_total"], 360)
