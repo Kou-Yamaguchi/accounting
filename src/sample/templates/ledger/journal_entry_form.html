@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block main %}
 
@@ -31,4 +32,8 @@
   <button type="submit">保存</button>
 </form>
 
+{% endblock %}
+
+{% block script %}
+<script src="{% static 'ledger/journal_entry_form.js' %}"></script>
 {% endblock %}
