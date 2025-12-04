@@ -1,86 +1,112 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const formsetContainer = document.querySelector('#formset-container');
-    const totalForms = document.querySelector('#id_{{ formset.prefix }}-TOTAL_FORMS');
-    const emptyFormTemplate = document.querySelector('#empty-form');
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('Journal Entry Form JS loaded');
 
-    /**
-     * 新しい行を追加する関数
-     * @param {string} type - 'D' (借方) または 'C' (貸方)
-     * @param {HTMLElement} container - 追加先のコンテナ要素
-     */
-    function addJournalLine(type, container) {
-        // フォームの総数を取得し、新しいインデックスとする
-        let currentTotal = parseInt(totalForms.value);
-        let newIndex = currentTotal;
-
-        // テンプレートから新しいフォーム行を複製
-        let newForm = emptyFormTemplate.cloneNode(true);
-        newForm.id = ''; // IDを削除して表示可能にする
-        newForm.style.display = 'block';
-        newForm.classList.add('journal-line');
-
-        // フォーム内の name/id 属性を新しいインデックスに置き換え
-        let formHtml = newForm.innerHTML.replace(/__prefix__/g, newIndex);
-        newForm.innerHTML = formHtml;
-        
-        // entry_type の hidden field に 'D' または 'C' を設定
-        const entryTypeInput = newForm.querySelector(`[name$="entry_type"]`);
-        if (entryTypeInput) {
-             entryTypeInput.value = type;
-        }
-
-        // 削除ボタンに関数をアタッチ
-        newForm.querySelector('.remove-line-button').addEventListener('click', removeLine);
-
-        // コンテナに追加
-        container.appendChild(newForm);
-
-        // TOTAL_FORMS の値をインクリメント
-        totalForms.value = currentTotal + 1;
+    function updateIndices(container) {
+        const lines = Array.from(container.querySelectorAll('.journal-line')).filter(l => l.style.display !== 'none');
+        lines.forEach((line, i) => {
+            line.dataset.index = i;
+            line.querySelectorAll('*').forEach(el => {
+                ['name', 'id', 'for'].forEach(attr => {
+                    if (el.hasAttribute(attr)) {
+                        let val = el.getAttribute(attr);
+                        // __prefix__ と既存の数字インデックスを置換
+                        val = val.replace(/__prefix__/g, i).replace(/-\d+-/g, `-${i}-`).replace(/-\d+$/g, `-${i}`);
+                        el.setAttribute(attr, val);
+                    }
+                });
+            });
+        });
+        const totalInput = container.querySelector('input[name$="-TOTAL_FORMS"]');
+        if (totalInput) totalInput.value = lines.length;
     }
 
-    /**
-     * 行を削除する関数
-     */
-    function removeLine(event) {
+    function addJournalLine(container, entryType) {
+        const totalInput = container.querySelector('input[name$="-TOTAL_FORMS"]');
+        if (!totalInput) {
+            console.error('管理フォーム (TOTAL_FORMS) が見つかりません', container);
+            return;
+        }
+        const index = parseInt(totalInput.value, 10);
+        const template = container.querySelector('.empty-form-template');
+        if (!template) {
+            console.error('empty form template が見つかりません', container);
+            return;
+        }
+
+        const newNode = document.createElement('div');
+        newNode.classList.add('journal-line');
+        // テンプレート内の __prefix__ を新しいインデックスで置換してセット
+        newNode.innerHTML = template.innerHTML.replace(/__prefix__/g, index);
+        newNode.style.display = 'block';
+
+        // entry_type フィールドがあれば設定
+        const entryTypeInput = newNode.querySelector('[name$="entry_type"]');
+        if (entryTypeInput) {
+            entryTypeInput.value = entryType;
+        }
+
+        // 削除ボタンがなければ追加する
+        if (!newNode.querySelector('.remove-line-button')) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'remove-line-button';
+            btn.textContent = '行を削除';
+            newNode.appendChild(btn);
+        }
+
+        // 削除イベントを付与
+        newNode.querySelector('.remove-line-button').addEventListener('click', function (e) {
+            removeLine(e, container);
+        });
+
+        container.appendChild(newNode);
+        // インデックス再採番（新しい行を含めて）
+        updateIndices(container);
+    }
+
+    function removeLine(event, container) {
         const line = event.target.closest('.journal-line');
-        // line が既存の行（PKを持つ）で DELETE チェックボックスがある場合
-        const deleteCheckbox = line.querySelector('[name$="-DELETE"]');
-        
+        if (!line) return;
+
+        const deleteCheckbox = line.querySelector('input[type="checkbox"][name$="-DELETE"]');
         if (deleteCheckbox) {
-            // 既存の行の場合は、削除チェックボックスにチェックを入れる
+            // 既存行: DELETE にチェックを入れて非表示
             deleteCheckbox.checked = true;
-            // 見た目上は隠すが、フォームセットには送信する
             line.style.display = 'none';
         } else {
-            // 新しく追加した行（PKを持たない）の場合は、DOMから削除
+            // 新規追加行: DOMから削除
             line.remove();
-            // TOTAL_FORMS のデクリメントと、残りの行のインデックス再採番は複雑なので、
-            // 簡略化のために新しく追加した行の削除は TOTAL_FORMS をそのままにし、
-            // サーバーサイドで余分な空行が保存されないように処理するのが一般的。
-            // 厳密にやるには、削除後に残りのフォームのインデックスを再採番する必要がある。
+            // インデックス再採番
+            updateIndices(container);
         }
     }
 
-    // 初期化: 既存の行を借方/貸方に振り分ける
-    document.querySelectorAll('.journal-line').forEach(line => {
-        const entryTypeInput = line.querySelector(`[name$="entry_type"]`);
-        if (entryTypeInput) {
-            if (entryTypeInput.value === 'D') {
-                document.querySelector('#debit-lines-container').appendChild(line);
-            } else if (entryTypeInput.value === 'C') {
-                document.querySelector('#credit-lines-container').appendChild(line);
+    // 初期化: 各コンテナの既存行にイベントを付与
+    ['debit-lines-container', 'credit-lines-container'].forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        // 既存の行の削除ボタンにイベントを追加
+        container.querySelectorAll('.journal-line').forEach(line => {
+            const btn = line.querySelector('.remove-line-button');
+            if (btn) {
+                btn.addEventListener('click', function (e) { removeLine(e, container); });
             }
+        });
+
+        // Add ボタン
+        const addButton = containerId === 'debit-lines-container' ?
+            document.getElementById('add-debit-button') :
+            document.getElementById('add-credit-button');
+
+        if (addButton) {
+            addButton.addEventListener('click', function () {
+                const type = containerId === 'debit-lines-container' ? 'D' : 'C';
+                addJournalLine(container, type);
+            });
         }
-        line.querySelector('.remove-line-button').addEventListener('click', removeLine);
-    });
 
-    // 「科目を追加」ボタンにイベントリスナーを設定
-    document.querySelector('#add-debit-button').addEventListener('click', function() {
-        addJournalLine('D', document.querySelector('#debit-lines-container'));
-    });
-
-    document.querySelector('#add-credit-button').addEventListener('click', function() {
-        addJournalLine('C', document.querySelector('#credit-lines-container'));
+        // 最初にインデックスを揃えておく
+        updateIndices(container);
     });
 });
