@@ -1,0 +1,51 @@
+main {
+  display: flex;
+  flex-wrap: nowrap;
+  width: calc(100vw - 280px);
+  /* height: 100vh; */
+  height: -webkit-fill-available;
+  margin-top: 60px;
+  margin-left: 280px;
+  /* max-height: 100vh; */
+  /* overflow-x: auto;
+  overflow-y: hidden; */
+}
+
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60px; /* Set the height of the header */
+  background-color: #343a40;
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 1001; /* Ensure the header is above other content */
+}
+
+.sidebar {
+  height: calc(100vh - 60px);
+  position: fixed;
+  top: 60px;
+  left: 0;
+  padding-top: 0; /* Adjust this value based on your header height */
+  background-color: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+  width: 280px; /* Set the width of the sidebar */
+  z-index: 1000; /* Ensure the sidebar is above other content */
+}
+
+.journal-lines {
+  display: flex;
+  gap: 40px;
+}
+
+.journal-line {
+  display: flex;
+  position: relative;
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 5px;
+}

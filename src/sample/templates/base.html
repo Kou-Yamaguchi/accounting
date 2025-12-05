@@ -1,17 +1,21 @@
 {% load static %}
-<!-- {% load django_bootstrap5 %} -->
+{% load django_bootstrap5 %}
 <html>
 
 <head>
   <meta charset="utf-8">
   <title></title>
-  <!-- {% bootstrap_css %}
-  {% bootstrap_javascript %} -->
-  <!-- <link rel="stylesheet" href="{% static 'snippets/css/style.css' %}"> -->
+  {% bootstrap_css %}
+  {% bootstrap_javascript %}
+  <link href="{% static 'css/style.css' %}" rel="stylesheet">
+  <!-- <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}"> -->
+  <!-- <script src="{% static 'javascript/journal_entry_form.js' %}"></script> -->
   {% block extraheader %}{% endblock %}
 </head>
 
 <body>
+  {% include 'header.html' %}
+  {% include 'sidebar.html' %}
   <main>
     <div class="container">
       {% block main %}{% endblock %}

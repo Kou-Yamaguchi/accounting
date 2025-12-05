@@ -1,34 +1,65 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block main %}
+
+<head>
+  <script src="{% static 'javascript/journal_entry_form.js' %}"></script>
+</head>
 
 <h2>仕訳登録・編集</h2>
 <form method="post">
   {% csrf_token %}
+
+  <h2>ヘッダー情報</h2>
   {{ form.as_p }}
   {{ form.errors }}
 
-  <h3>借方</h3>
-  {{ debit_formset.management_form }}
-  {{ debit_formset.non_form_errors }}
-  {% for debit_form in debit_formset %}
-    {{ debit_form.as_p }}
-    {% if debit_form.non_field_errors %}
-    {% for error in debit_form.non_field_errors %}
-      <div class="error">{{ error }}</div>
-    {% endfor %}
-    {% endif %}
-    {{ debit_form.errors }}
-  {% endfor %}
+  <div class="journal-lines">
+    <div id="debit-lines-container">
+      <h3>借方行</h3>
+      {{ debit_formset.management_form }}
+      {% for debit_form in debit_formset %}
+      <div class="journal-line">
+        {{ debit_form.as_p }}
+        {{ debit_form.errors }}
+        <button type="button" class="remove-line-button">行を削除</button>
+      </div>
+      {% endfor %}
 
-  <h3>貸方</h3>
-  {{ credit_formset.management_form }}
-  {% for credit_form in credit_formset %}
-  {{ credit_form.as_p }}
-  {{ credit_form.errors }}
-  {% endfor %}
+      <!-- empty_form テンプレート（Django の __prefix__ が入っている） -->
+      <div class="empty-form-template" style="display:none;">
+        {{ debit_formset.empty_form.as_p }}
+      </div>
+
+      <button type="button" id="add-debit-button">借方を追加</button>
+    </div>
+
+    <div id="credit-lines-container">
+      <h3>貸方行</h3>
+      {{ credit_formset.management_form }}
+      {% for credit_form in credit_formset %}
+      <div class="journal-line">
+        {{ credit_form.as_p }}
+        {{ credit_form.errors }}
+        <button type="button" class="remove-line-button">行を削除</button>
+      </div>
+      {% endfor %}
+
+      <!-- empty_form テンプレート -->
+      <div class="empty-form-template" style="display:none;">
+        {{ credit_formset.empty_form.as_p }}
+      </div>
+
+      <button type="button" id="add-credit-button">貸方を追加</button>
+    </div>
+  </div>
 
   <button type="submit">保存</button>
 </form>
 
 {% endblock %}
+
+<!-- {% block script %}
+<script src="{% static 'javascript/journal_entry_form.js' %}"></script>
+{% endblock %} -->

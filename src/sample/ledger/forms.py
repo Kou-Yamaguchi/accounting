@@ -6,6 +6,10 @@ from django.utils.translation import gettext_lazy as _
 from ledger.models import JournalEntry, Debit, Credit
 from enums.error_messages import ErrorMessages
 
+ACCOUNT = "account"
+AMOUNT = "amount"
+
+
 class JournalEntryForm(forms.ModelForm):
     class Meta:
         model = JournalEntry
@@ -15,22 +19,22 @@ class JournalEntryForm(forms.ModelForm):
 class DebitForm(forms.ModelForm):
     class Meta:
         model = Debit
-        fields = ["account", "amount"]
+        fields = [ACCOUNT, AMOUNT]
 
     def clean_amount(self):
-        amount = self.cleaned_data.get("amount")
+        amount = self.cleaned_data.get(AMOUNT)
         if amount is not None and amount <= Decimal("0"):
             raise forms.ValidationError(
                 _(ErrorMessages.MESSAGE_0003.value),
                 code="invalid",
-                params={"amount": amount},
+                params={f"{AMOUNT}": amount},
             )
         return amount
 
     def clean(self):
         cleaned_data = super().clean()
-        account = cleaned_data.get("account")
-        amount = cleaned_data.get("amount")
+        account = cleaned_data.get(ACCOUNT)
+        amount = cleaned_data.get(AMOUNT)
         if (account and amount is None) or (amount and account is None):
             raise forms.ValidationError(
                 _(ErrorMessages.MESSAGE_0004.value),
@@ -42,27 +46,36 @@ class DebitForm(forms.ModelForm):
 class CreditForm(forms.ModelForm):
     class Meta:
         model = Credit
-        fields = ["account", "amount"]
+        fields = [ACCOUNT, AMOUNT]
 
     def clean_amount(self):
-        amount = self.cleaned_data.get("amount")
+        amount = self.cleaned_data.get(AMOUNT)
         if amount is not None and amount <= Decimal("0"):
             raise forms.ValidationError(
                 _(ErrorMessages.MESSAGE_0003.value),
                 code="invalid",
-                params={"amount": amount},
+                params={f"{AMOUNT}": amount},
             )
         return amount
 
     def clean(self):
         cleaned_data = super().clean()
-        account = cleaned_data.get("account")
-        amount = cleaned_data.get("amount")
+        account = cleaned_data.get(ACCOUNT)
+        amount = cleaned_data.get(AMOUNT)
+
+        # if (account and amount):
+        #     return cleaned_data
+        
+        # raise forms.ValidationError(
+        #     _(ErrorMessages.MESSAGE_0004.value),
+        #     code="invalid",
+        # )
+
         if (account and amount is None) or (amount and account is None):
             raise forms.ValidationError(
                 _(ErrorMessages.MESSAGE_0004.value),
                 code="invalid",
-                params={"account": account, "amount": amount},
+                params={ACCOUNT: account, AMOUNT: amount},
             )
         return cleaned_data
 
@@ -73,11 +86,12 @@ class BaseTotalFormSet(forms.BaseInlineFormSet):
         total_amount = Decimal("0.00")
 
         for form in self.forms:
-            if form.cleaned_data and not form.cleaned_data.get("DELETE", False):
-                amount = form.cleaned_data.get("amount")
-                if amount is None or amount <= 0:
-                    raise forms.ValidationError(ErrorMessages.MESSAGE_0003.value)
-                total_amount += amount
+            # if (form.cleaned_data) and not form.cleaned_data.get("DELETE", False):
+            amount = form.cleaned_data.get(AMOUNT)
+            if amount is None or amount <= 0:
+                raise forms.ValidationError(ErrorMessages.MESSAGE_0003.value)
+            
+            total_amount += amount
 
         self.total_amount = total_amount
 
