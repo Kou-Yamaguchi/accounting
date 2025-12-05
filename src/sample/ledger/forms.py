@@ -3,11 +3,17 @@ from decimal import Decimal
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from ledger.models import JournalEntry, Debit, Credit
+from ledger.models import Account, JournalEntry, Debit, Credit
 from enums.error_messages import ErrorMessages
 
 ACCOUNT = "account"
 AMOUNT = "amount"
+
+
+class AccountForm(forms.ModelForm):
+    class Meta:
+        model = Account
+        fields = ["name", "type", "is_default"]
 
 
 class JournalEntryForm(forms.ModelForm):

@@ -1,6 +1,10 @@
 from django.urls import path
 
 from ledger.views import (
+    AccountListView,
+    AccountCreateView,
+    AccountUpdateView,
+    AccountDeleteView,
     JournalEntryCreateView,
     JournalEntryListView,
     JournalEntryUpdateView,
@@ -17,6 +21,10 @@ urlpatterns = [
     path("", JournalEntryListView.as_view(), name="journal_entry_list"),
     path("<int:pk>/edit/", JournalEntryUpdateView.as_view(), name="journal_entry_edit"),
     path("<int:pk>/delete/", JournalEntryDeleteView.as_view(), name="journal_entry_delete"),
+    path("accounts/", AccountListView.as_view(), name="account_list"),
+    path("accounts/new/", AccountCreateView.as_view(), name="account_create"),
+    path("accounts/<int:pk>/edit/", AccountUpdateView.as_view(), name="account_edit"),
+    path("accounts/<int:pk>/delete/", AccountDeleteView.as_view(), name="account_delete"),
     path("<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger"),
     path("cash_book/cash/<int:year>/<int:month>/", CashBookView.as_view(), name="cash_book"),
     path("cash_book/cash/", CashBookView.as_view(), name="cash_book_current"),

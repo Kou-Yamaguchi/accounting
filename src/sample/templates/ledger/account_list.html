@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block main %}
+<h1>Account List</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Default</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for account in accounts %}
+        <tr>
+            <td>{{ account.name }}</td>
+            <td>{{ account.type }}</td>
+            <td>{{ account.is_default }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{% url 'account_create' %}">Create New Account</a>
+{% endblock %}

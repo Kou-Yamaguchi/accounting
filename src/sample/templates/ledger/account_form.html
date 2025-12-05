@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block main %}
+<h1>Create / Edit Account</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save</button>
+</form>
+<a href="{% url 'account_list' %}">Back to Account List</a>
+{% endblock %}
