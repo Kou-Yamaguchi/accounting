@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block main %}
+<h1>帳票選択</h1>
+<h2>主要簿</h2>
+<ul>
+  <li><a href="{% url 'journal_entry_list' %}">仕訳帳</a></li>
+  <li><a href="{% url 'general_ledger' %}">総勘定元帳</a></li>
+</ul>
+<h2>補助簿</h2>
+<ul>
+  <li><a href="">現金出納帳</a></li>
+  <li><a href="">当座預金出納帳</a></li>
+  <li><a href="">小口現金出納帳</a></li>
+  <li><a href="">売上帳</a></li>
+  <li><a href="">仕入帳</a></li>
+  <li><a href="">売掛金元帳</a></li>
+  <li><a href="">買掛金元帳</a></li>
+</ul>
+<h2>財務諸表</h2>
+<ul>
+  <li><a href="">貸借対照表</a></li>
+  <li><a href="">損益計算書</a></li>
+</ul>
+{% endblock %}
