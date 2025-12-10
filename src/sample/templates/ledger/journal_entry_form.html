@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load django_bootstrap5 %}
 
 {% block main %}
 
@@ -12,7 +13,7 @@
   {% csrf_token %}
 
   <h2>ヘッダー情報</h2>
-  {{ form.as_p }}
+  {% bootstrap_form form %}
   {{ form.errors }}
 
   <div class="journal-lines">
@@ -21,18 +22,19 @@
       {{ debit_formset.management_form }}
       {% for debit_form in debit_formset %}
       <div class="journal-line">
-        {{ debit_form.as_p }}
-        {{ debit_form.errors }}
+        <!-- {{ debit_form.as_p }} -->
+        {% bootstrap_form debit_form %}
+        <!-- {{ debit_form.errors }} -->
         <button type="button" class="remove-line-button">行を削除</button>
       </div>
       {% endfor %}
 
       <!-- empty_form テンプレート（Django の __prefix__ が入っている） -->
       <div class="empty-form-template" style="display:none;">
-        {{ debit_formset.empty_form.as_p }}
+        {% bootstrap_form debit_formset.empty_form %}
       </div>
 
-      <button type="button" id="add-debit-button">借方を追加</button>
+      {% bootstrap_button button_type="button" content="借方を追加" id="add-debit-button" %}
     </div>
 
     <div id="credit-lines-container">
@@ -40,22 +42,23 @@
       {{ credit_formset.management_form }}
       {% for credit_form in credit_formset %}
       <div class="journal-line">
-        {{ credit_form.as_p }}
-        {{ credit_form.errors }}
+        {% bootstrap_form credit_form %}
+        <!-- {{ credit_form.errors }} -->
         <button type="button" class="remove-line-button">行を削除</button>
+        <!-- {% bootstrap_button button_type="button" content="行を削除" class="remove-line-button" %} -->
       </div>
       {% endfor %}
 
       <!-- empty_form テンプレート -->
       <div class="empty-form-template" style="display:none;">
-        {{ credit_formset.empty_form.as_p }}
+        {% bootstrap_form credit_formset.empty_form %}
       </div>
 
-      <button type="button" id="add-credit-button">貸方を追加</button>
+      {% bootstrap_button button_type="button" content="貸方を追加" id="add-credit-button" %}
     </div>
   </div>
 
-  <button type="submit">保存</button>
+  {% bootstrap_button button_type="submit" content="保存" %}
 </form>
 
 {% endblock %}
