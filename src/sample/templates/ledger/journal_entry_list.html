@@ -4,14 +4,38 @@
 
 <h2>仕訳一覧</h2>
 <a href="{% url 'journal_entry_new' %}">新規登録</a>
-<ul>
+<table class="table">
+  <tr>
+    <th>日付</th>
+    <th>摘要</th>
+    <th>借方</th>
+    <th>貸方</th>
+    <th>操作</th>
+  </tr>
   {% for entry in journal_entries %}
-  <li>
-    {{ entry.date }} {{ entry.summary }}
-    <a href="{% url 'journal_entry_edit' entry.pk %}">編集</a>
-    <a href="{% url 'journal_entry_delete' entry.pk %}">削除</a>
-  </li>
+  <tr class="mb-2">
+    <td>{{ entry.date }}</td>
+    <td>{{ entry.summary }}</td>
+    <td>
+      {% for line in entry.debits.all %}
+        <div>
+          {{ line.account.name }} {{ line.amount }}
+        </div>
+      {% endfor %}
+    </td>
+    <td>
+      {% for line in entry.credits.all %}
+        <div>
+          {{ line.account.name }} {{ line.amount }}
+        </div>
+      {% endfor %}
+    </td>
+    <td>
+      <a href="{% url 'journal_entry_edit' entry.pk %}">編集</a>
+      <a href="{% url 'journal_entry_delete' entry.pk %}">削除</a>
+    </td>
+  </tr>
   {% endfor %}
-</ul>
+</table>
 
 {% endblock %}
