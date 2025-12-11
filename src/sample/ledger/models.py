@@ -17,7 +17,7 @@ class Account(models.Model):
     """
 
     name = models.CharField(max_length=200, unique=True)
-    type = models.CharField(max_length=64, choices=ACCOUNT_TYPE_CHOICES)
+    type = models.CharField(max_length=64, choices=ACCOUNT_TYPE_CHOICES, null=False)
     is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

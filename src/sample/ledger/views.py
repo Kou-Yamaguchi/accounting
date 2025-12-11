@@ -61,7 +61,7 @@ class PurchaseBook:
 
 class AccountCreateView(CreateView):
     model = Account
-    fields = ["name"]
+    fields = ["name", "type"]
     template_name = "ledger/account_form.html"
     success_url = reverse_lazy("account_list")
 
@@ -74,7 +74,7 @@ class AccountListView(ListView):
 
 class AccountUpdateView(UpdateView):
     model = Account
-    fields = ["name"]
+    fields = ["name", "type"]
     template_name = "ledger/account_form.html"
     success_url = reverse_lazy("account_list")
 
