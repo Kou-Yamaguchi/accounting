@@ -1,0 +1,28 @@
+<!-- 勘定科目管理 -->
+{% extends "base.html" %}
+
+{% block main %}
+<h1>登録済み勘定科目</h1>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>グループ</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for account in accounts %}
+        <tr>
+            <td>{{ account.name }}</td>
+            <td>{{ account.type }}</td>
+            <td>
+                <a href="{% url 'account_edit' account.pk %}">編集</a> |
+                <a href="{% url 'account_delete' account.pk %}">削除</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{% url 'account_create' %}">Create New Account</a>
+{% endblock %}

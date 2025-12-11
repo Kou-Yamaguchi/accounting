@@ -1,6 +1,4 @@
 document.addEventListener('DOMContentLoaded', function () {
-    console.log('Journal Entry Form JS loaded');
-
     function updateIndices(container) {
         const lines = Array.from(container.querySelectorAll('.journal-line')).filter(l => l.style.display !== 'none');
         lines.forEach((line, i) => {
@@ -108,5 +106,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 最初にインデックスを揃えておく
         updateIndices(container);
+        const totalInput = container.querySelector('input[name$="-TOTAL_FORMS"]');
+        console.log(totalInput)
+        if (totalInput && parseInt(totalInput.value, 10) === 0) {
+            const type = containerId === 'debit-lines-container' ? 'D' : 'C';
+            addJournalLine(container, type);
+        }
     });
 });

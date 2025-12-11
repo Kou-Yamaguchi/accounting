@@ -59,6 +59,32 @@ class PurchaseBook:
     error: str = None
 
 
+class AccountCreateView(CreateView):
+    model = Account
+    fields = ["name", "type"]
+    template_name = "ledger/account_form.html"
+    success_url = reverse_lazy("account_list")
+
+
+class AccountListView(ListView):
+    model = Account
+    template_name = "ledger/account_list.html"
+    context_object_name = "accounts"
+
+
+class AccountUpdateView(UpdateView):
+    model = Account
+    fields = ["name", "type"]
+    template_name = "ledger/account_form.html"
+    success_url = reverse_lazy("account_list")
+
+
+class AccountDeleteView(DeleteView):
+    model = Account
+    template_name = "ledger/account_confirm_delete.html"
+    success_url = reverse_lazy("account_list")
+
+
 class JournalEntryListView(ListView):
     model = JournalEntry
     template_name = "ledger/journal_entry_list.html"
@@ -156,6 +182,11 @@ class JournalEntryDeleteView(DeleteView):
     model = JournalEntry
     template_name = "ledger/journal_entry_confirm_delete.html"
     success_url = reverse_lazy("journal_entry_list")
+
+
+class LedgerSelectView(TemplateView):
+    """帳票選択ビュー"""
+    template_name = "ledger/ledger_select.html"
 
 
 class GeneralLedgerView(TemplateView):

@@ -20,31 +20,39 @@
         <svg class="bi me-2" width="16" height="16">
           <use xlink:href="#speedometer2" />
         </svg>
-        Dashboard
+        ダッシュボード
       </a>
     </li>
     <li>
-      <a href="#" class="nav-link text-white">
+      <a href="{% url 'journal_entry_new' %}" class="nav-link text-white">
         <svg class="bi me-2" width="16" height="16">
           <use xlink:href="#table" />
         </svg>
-        Orders
+        仕訳入力
       </a>
     </li>
     <li>
-      <a href="#" class="nav-link text-white">
+      <a href="{% url 'journal_entry_list' %}" class="nav-link text-white">
         <svg class="bi me-2" width="16" height="16">
           <use xlink:href="#grid" />
         </svg>
-        Products
+        仕訳一覧
       </a>
     </li>
     <li>
-      <a href="#" class="nav-link text-white">
+      <a href="{% url 'ledger_select' %}" class="nav-link text-white">
         <svg class="bi me-2" width="16" height="16">
           <use xlink:href="#people-circle" />
         </svg>
-        Customers
+        帳票表示
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'account_list' %}" class="nav-link text-white">
+        <svg class="bi me-2" width="16" height="16">
+          <use xlink:href="#account" />
+        </svg>
+        勘定科目管理
       </a>
     </li>
   </ul>

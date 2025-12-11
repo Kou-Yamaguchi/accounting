@@ -3,11 +3,17 @@ from decimal import Decimal
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from ledger.models import JournalEntry, Debit, Credit
+from ledger.models import Account, JournalEntry, Debit, Credit
 from enums.error_messages import ErrorMessages
 
 ACCOUNT = "account"
 AMOUNT = "amount"
+
+
+class AccountForm(forms.ModelForm):
+    class Meta:
+        model = Account
+        fields = ["name", "type", "is_default"]
 
 
 class JournalEntryForm(forms.ModelForm):
@@ -86,7 +92,9 @@ class BaseTotalFormSet(forms.BaseInlineFormSet):
         total_amount = Decimal("0.00")
 
         for form in self.forms:
-            # if (form.cleaned_data) and not form.cleaned_data.get("DELETE", False):
+            if form.cleaned_data.get("DELETE", False):
+                continue
+
             amount = form.cleaned_data.get(AMOUNT)
             if amount is None or amount <= 0:
                 raise forms.ValidationError(ErrorMessages.MESSAGE_0003.value)
@@ -101,7 +109,7 @@ DebitFormSet = forms.inlineformset_factory(
     Debit,
     form=DebitForm,
     formset=BaseTotalFormSet,
-    extra=1,
+    extra=0,
     can_delete=True
 )
 
@@ -110,6 +118,6 @@ CreditFormSet = forms.inlineformset_factory(
     Credit,
     form=CreditForm,
     formset=BaseTotalFormSet,
-    extra=1,
+    extra=0,
     can_delete=True
 )
