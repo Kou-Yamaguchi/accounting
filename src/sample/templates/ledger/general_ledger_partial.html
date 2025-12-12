@@ -1,0 +1,22 @@
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>日付</th>
+      <th>摘要</th>
+      <th>借方金額</th>
+      <th>貸方金額</th>
+      <th>残高</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for entry in ledger_entries %}
+    <tr>
+      <td>{{ entry.date }}</td>
+      <td>{{ entry.counter_party }}</td>
+      <td>{{ entry.debit_amount|default:"-" }}</td>
+      <td>{{ entry.credit_amount|default:"-" }}</td>
+      <td>{{ entry.running_balance }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
