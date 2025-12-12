@@ -7,22 +7,22 @@
   </a>
   <hr>
   <ul class="nav nav-pills flex-column mb-auto">
-    <li class="nav-item">
+    <!-- <li class="nav-item">
       <a href="#" class="nav-link active" aria-current="page">
         <svg class="bi me-2" width="16" height="16">
           <use xlink:href="#home" />
         </svg>
         Home
       </a>
-    </li>
-    <li>
+    </li> -->
+    <!-- <li>
       <a href="#" class="nav-link text-white">
         <svg class="bi me-2" width="16" height="16">
           <use xlink:href="#speedometer2" />
         </svg>
         ダッシュボード
       </a>
-    </li>
+    </li> -->
     <li>
       <a href="{% url 'journal_entry_new' %}" class="nav-link text-white">
         <svg class="bi me-2" width="16" height="16">
@@ -74,3 +74,23 @@
     </ul>
   </div>
 </div>
+
+<script>
+  // Get the current page's pathname (e.g., "/about.html")
+  const currentPagePathname = window.location.pathname;
+
+  // Select all navigation links in the sidebar
+  const navLinks = document.querySelectorAll('.sidebar .nav-link');
+
+  // Loop through the links and add the active class to the current page
+  navLinks.forEach(link => {
+    if (link.getAttribute('href') === currentPagePathname) {
+      link.classList.add('active');
+      // Add aria-current for accessibility (using "page" value for current page)
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.classList.remove('active');
+      link.removeAttribute('aria-current');
+    }
+  });
+</script>
