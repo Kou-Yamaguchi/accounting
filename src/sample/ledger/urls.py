@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from ledger.views import (
     AccountListView,
@@ -27,7 +28,9 @@ urlpatterns = [
     path("accounts/<int:pk>/edit/", AccountUpdateView.as_view(), name="account_edit"),
     path("accounts/<int:pk>/delete/", AccountDeleteView.as_view(), name="account_delete"),
     path("select/", LedgerSelectView.as_view(), name="ledger_select"),
-    path("<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger"),
+    path("general_ledger/", TemplateView.as_view(template_name="ledger/general_ledger.html"), name="general_ledger"),
+    # path("general_ledger/<str:account_name>/<str:date_from>/<str:date_to>/", GeneralLedgerView.as_view(), name="general_ledger_filtered"),
+    path("<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger_by_account"),
     path("cash_book/cash/<int:year>/<int:month>/", CashBookView.as_view(), name="cash_book"),
     path("cash_book/cash/", CashBookView.as_view(), name="cash_book_current"),
     path("cash_book/current/<int:year>/<int:month>/", CurrentAccountCashBookView.as_view(), name="current_account_cash_book"),

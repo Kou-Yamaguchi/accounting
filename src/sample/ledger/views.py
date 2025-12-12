@@ -195,7 +195,7 @@ class GeneralLedgerView(TemplateView):
     URL: /ledger/<str:account_name>/
     """
 
-    template_name = "ledger/general_ledger.html"  # 使用するテンプレートファイル名
+    template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

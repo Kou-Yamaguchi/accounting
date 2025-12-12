@@ -2,9 +2,53 @@
 
 {% block main %}
 
+<head>
+  <meta charset="utf-8">
+  <title>総勘定元帳</title>
+  <script src="https://unpkg.com/htmx.org@2.0.0"
+    integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw" crossorigin="anonymous"></script>
+</head>
+
 <h2>総勘定元帳</h2>
-<h3>勘定科目: {{ account_name }}</h3>
-<table>
+<!-- <h3>勘定科目: {{ account_name }}</h3> -->
+<form id="ledger-form"
+  hx-target="#search-result"
+  hx-swap="innerHTML"
+  class="form-inline mb-3"
+  method="get"
+  onsubmit="event.preventDefault(); submitLedger();"
+>
+  {% csrf_token %}
+  <label for="date_from">開始日:</label>
+  <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
+  <label for="date_to">終了日:</label>
+  <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+  <button type="submit" class="btn btn-primary btn-sm">表示</button>
+  <label for="account_name">勘定科目:</label>
+  <input type="text" id="account_name" name="account_name" value="{{ account_name }}">
+</form>
+
+<script>
+function submitLedger(){
+  const name = document.getElementById('account_name').value || '';
+  const dateFrom = document.getElementById('date_from').value || '';
+  const dateTo = document.getElementById('date_to').value || '';
+
+  // URL の逆引きテンプレート（プレースホルダを置換）
+  const urlTemplate = "{% url 'general_ledger_by_account' account_name='__PLACEHOLDER__' %}";
+  const baseUrl = urlTemplate.replace('__PLACEHOLDER__', encodeURIComponent(name));
+
+  const params = new URLSearchParams();
+  if (dateFrom) params.append('date_from', dateFrom);
+  if (dateTo) params.append('date_to', dateTo);
+
+  const finalUrl = params.toString() ? baseUrl + '?' + params.toString() : baseUrl;
+
+  htmx.ajax('GET', finalUrl, { target: '#search-result', swap: 'innerHTML' });
+}
+</script>
+
+<table id="search-result" class="table table-striped">
   <thead>
     <tr>
       <th>日付</th>
@@ -14,14 +58,6 @@
     </tr>
   </thead>
   <tbody>
-    {% for entry in ledger_entries %}
-    <tr>
-      <td>{{ entry.date }}</td>
-      <td>{{ entry.summary }}</td>
-      <td>>{{ entry.debit_amount|default:"-" }}</td>
-      <td>{{ entry.credit_amount|default:"-" }}</td>
-    </tr>
-    {% endfor %}
   </tbody>
 </table>
 
