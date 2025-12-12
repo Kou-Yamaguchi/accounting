@@ -19,10 +19,8 @@
   onsubmit="event.preventDefault(); submitLedger();"
 >
   {% csrf_token %}
-  <label for="date_from">開始日:</label>
-  <input type="date" id="date_from" name="date_from" value="{{ date_from }}">
-  <label for="date_to">終了日:</label>
-  <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+  <label for="year_month">年月:</label>
+  <input type="month" id="year_month" name="year_month" value="{{ year_month }}">
   <label for="account_name">勘定科目:</label>
   <input type="text" id="account_name" name="account_name" value="{{ account_name }}">
   <button type="submit" class="btn btn-primary btn-sm">表示</button>
@@ -31,16 +29,14 @@
 <script>
 function submitLedger(){
   const name = document.getElementById('account_name').value || '';
-  const dateFrom = document.getElementById('date_from').value || '';
-  const dateTo = document.getElementById('date_to').value || '';
+  const yearMonth = document.getElementById('year_month').value;
 
   // URL の逆引きテンプレート（プレースホルダを置換）
   const urlTemplate = "{% url 'general_ledger_by_account' account_name='__PLACEHOLDER__' %}";
   const baseUrl = urlTemplate.replace('__PLACEHOLDER__', encodeURIComponent(name));
 
   const params = new URLSearchParams();
-  if (dateFrom) params.append('date_from', dateFrom);
-  if (dateTo) params.append('date_to', dateTo);
+  if (yearMonth) params.append('year_month', yearMonth);
 
   const finalUrl = params.toString() ? baseUrl + '?' + params.toString() : baseUrl;
 
