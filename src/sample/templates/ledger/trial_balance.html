@@ -1,0 +1,42 @@
+<!-- 残高試算表 -->
+{% extends "base.html" %}
+
+{% block title %}残高試算表{% endblock %}
+
+{% block main %}
+
+<h2>残高試算表</h2>
+<form id="balance-sheet-form"
+  hx-target="#search-result"
+  hx-swap="innerHTML"
+  class="form-inline mb-3"
+  method="get"
+  onsubmit="event.preventDefault(); submitBalanceSheet();"
+>
+  {% csrf_token %}
+  <label for="year_month">年月:</label>
+  <input type="month" id="year_month" name="year_month" value="{{ year_month }}">
+  <button type="submit" class="btn btn-primary btn-sm">表示</button>
+</form>
+
+<script>
+function submitBalanceSheet(){
+  const yearMonth = document.getElementById('year_month').value;
+  const params = new URLSearchParams();
+  if (yearMonth) params.append('year_month', yearMonth);
+  const finalUrl = "{% url 'balance_sheet' %}" + (params.toString() ? '?' + params.toString() : '');
+  htmx.ajax('GET', finalUrl, { target: '#search-result', swap: 'innerHTML' });
+}
+</script>
+<table id="search-result" class="table table-striped">
+  <thead>
+    <tr>
+      <th>勘定科目</th>
+      <th>借方残高</th>
+      <th>貸方残高</th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
+{% endblock %}

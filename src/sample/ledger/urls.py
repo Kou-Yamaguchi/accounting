@@ -12,6 +12,7 @@ from ledger.views import (
     JournalEntryDeleteView,
     LedgerSelectView,
     GeneralLedgerView,
+    TrialBalanceView,
     CashBookView,
     CurrentAccountCashBookView,
     PettyCashBookView,
@@ -39,4 +40,6 @@ urlpatterns = [
     path("cash_book/petty/", PettyCashBookView.as_view(), name="petty_cash_book_current"),
     path("purchase_book/<int:year>/<int:month>/", PurchaseBookView.as_view(), name="purchase_book"),
     path("purchase_book/", PurchaseBookView.as_view(), name="purchase_book_current"),
+    path("trial_balance/", TemplateView.as_view(template_name="ledger/trial_balance.html"), name="trial_balance"),
+    path("trial_balance/<int:year>/", TrialBalanceView.as_view(), name="trial_balance_by_year"),
 ]
