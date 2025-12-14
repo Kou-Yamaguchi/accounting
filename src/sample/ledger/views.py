@@ -4,7 +4,7 @@ from calendar import monthrange
 from dataclasses import dataclass
 
 from django.shortcuts import render, get_object_or_404
-from django.db.models import F, Q, Value, CharField, Prefetch
+from django.db.models import F, Q, Value, CharField, Prefetch, Sum
 from django.views.generic import (
     ListView,
     CreateView,
@@ -18,7 +18,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 from ledger.models import JournalEntry, Account, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
-from ledger.services import calculate_monthly_balance
+from ledger.services import calculate_monthly_balance, get_fiscal_range
 from enums.error_messages import ErrorMessages
 
 @dataclass
@@ -285,6 +285,62 @@ class GeneralLedgerView(TemplateView):
             ledger_entries.append(entry)
 
         context["ledger_entries"] = ledger_entries
+
+        return context
+
+
+class TrialBalanceView(TemplateView):
+    """
+    試算表ビュー
+    該当年度の試算表を表示する。
+    URL: /ledger/trial_balance/<int:year>/
+    """
+    template_name = "ledger/trial_balance.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        year = self.kwargs.get("year", datetime.now().year)
+
+        start_date, end_date = get_fiscal_range(year)
+
+        # 全勘定科目を取得
+        accounts = Account.objects.all().order_by("type", "name")
+
+        trial_balance_data = []
+
+        for account in accounts:
+            # 各勘定科目の借方・貸方合計を計算
+
+            debit_total = (
+                Debit.objects.filter(
+                    account=account,
+                    journal_entry__date__gte=start_date,
+                    journal_entry__date__lte=end_date,
+                )
+                .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+            )
+            credit_total = (
+                Credit.objects.filter(
+                    account=account,
+                    journal_entry__date__gte=start_date,
+                    journal_entry__date__lte=end_date,
+                )
+                .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+            )
+
+            if account.type == 'asset' or account.type == 'expense':
+                total = debit_total - credit_total
+            else:
+                total = credit_total - debit_total
+
+            trial_balance_data.append({
+                "account": account,
+                "type": account.type,
+                "total": total,
+            })
+
+        context["year"] = year
+        context["trial_balance_data"] = trial_balance_data
 
         return context
 

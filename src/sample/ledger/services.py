@@ -8,6 +8,42 @@ from django.db.models import Sum
 from .models import JournalEntry, InitialBalance, Account, Debit, Credit, PurchaseDetail, Item, Company
 
 
+def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple[date, date]:
+    """
+    指定された年の会計期間の開始日と終了日を取得します。
+    queryパラメータで会計年度を指定する場合に使用します。
+    例: 2024年 -> (2024-04-01, 2025-03-31)
+    期首が4月1日、期末が翌年3月31日と仮定しています。
+
+    Args:
+        year (int): 会計年度の開始年
+        start_month (int): 会計年度の開始月 (デフォルトは4月)
+        months (int): 会計年度の月数 (デフォルトは12ヶ月)
+
+    Returns:
+        tuple[date, date]: 会計期間の開始日と終了日
+    """
+    start_date = date(year, start_month, 1)
+    end_date = start_date + relativedelta(months=months) - relativedelta(days=1)
+    return start_date, end_date
+
+
+def get_month_range(year: int, month: int) -> tuple[date, date]:
+    """
+    指定された年月の開始日と終了日を取得します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        tuple[date, date]: 月の開始日と終了日
+    """
+    start_date = date(year, month, 1)
+    end_date = start_date + relativedelta(months=1) - relativedelta(days=1)
+    return start_date, end_date
+
+
 def get_initial_balance(account_id: int) -> Decimal:
     """
     指定された勘定科目の初期残高を取得します。
