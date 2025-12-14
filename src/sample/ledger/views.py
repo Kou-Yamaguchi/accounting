@@ -293,13 +293,13 @@ class TrialBalanceView(TemplateView):
     """
     試算表ビュー
     該当年度の試算表を表示する。
-    URL: /ledger/trial_balance/<int:year>/
+    URL: /ledger/trial_balance_by_year/
     """
-    template_name = "ledger/trial_balance.html"
+    template_name = "ledger/trial_balance_partial.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        year = self.kwargs.get("year", datetime.now().year)
+        year = int(self.request.GET.get("year"))
 
         start_date, end_date = get_fiscal_range(year)
 
@@ -338,6 +338,8 @@ class TrialBalanceView(TemplateView):
                 "type": account.type,
                 "total": total,
             })
+
+        print(trial_balance_data)
 
         context["year"] = year
         context["trial_balance_data"] = trial_balance_data

@@ -29,6 +29,8 @@ urlpatterns = [
     path("accounts/<int:pk>/edit/", AccountUpdateView.as_view(), name="account_edit"),
     path("accounts/<int:pk>/delete/", AccountDeleteView.as_view(), name="account_delete"),
     path("select/", LedgerSelectView.as_view(), name="ledger_select"),
+    path("trial_balance/", TemplateView.as_view(template_name="ledger/trial_balance.html"), name="trial_balance"),
+    path("trial_balance_by_year/", TrialBalanceView.as_view(), name="trial_balance_by_year"),
     path("general_ledger/", TemplateView.as_view(template_name="ledger/general_ledger.html"), name="general_ledger"),
     # path("general_ledger/<str:account_name>/<str:date_from>/<str:date_to>/", GeneralLedgerView.as_view(), name="general_ledger_filtered"),
     path("<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger_by_account"),
@@ -40,6 +42,4 @@ urlpatterns = [
     path("cash_book/petty/", PettyCashBookView.as_view(), name="petty_cash_book_current"),
     path("purchase_book/<int:year>/<int:month>/", PurchaseBookView.as_view(), name="purchase_book"),
     path("purchase_book/", PurchaseBookView.as_view(), name="purchase_book_current"),
-    path("trial_balance/", TemplateView.as_view(template_name="ledger/trial_balance.html"), name="trial_balance"),
-    path("trial_balance/<int:year>/", TrialBalanceView.as_view(), name="trial_balance_by_year"),
 ]

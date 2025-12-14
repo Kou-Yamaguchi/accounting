@@ -7,17 +7,17 @@
     </tr>
   </thead>
   <tbody>
-    {% for item in balance_sheet %}
+    {% for item in trial_balance_data %}
     {% if item.type == "asset" or item.type == "expense" %}
     <tr>
       <td>{{ item.total }}</td>
-      <td>{{ item.account_name }}</td>
+      <td>{{ item.account }}</td>
       <td></td>
     </tr>
     {% else %}
     <tr>
       <td></td>
-      <td>{{ item.account_name }}</td>
+      <td>{{ item.account }}</td>
       <td>{{ item.total }}</td>
     </tr>
     {% endif %}

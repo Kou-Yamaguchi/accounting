@@ -1,38 +1,27 @@
 <!-- 残高試算表 -->
 {% extends "base.html" %}
 
-{% block title %}残高試算表{% endblock %}
-
 {% block main %}
 
-<h2>残高試算表</h2>
-<form id="balance-sheet-form"
-  hx-target="#search-result"
-  hx-swap="innerHTML"
-  class="form-inline mb-3"
-  method="get"
-  onsubmit="event.preventDefault(); submitBalanceSheet();"
->
-  {% csrf_token %}
-  <label for="year_month">年月:</label>
-  <input type="month" id="year_month" name="year_month" value="{{ year_month }}">
-  <button type="submit" class="btn btn-primary btn-sm">表示</button>
-</form>
+<head>
+  <meta charset="utf-8">
+  <title>残高試算表</title>
+  <script src="https://unpkg.com/htmx.org@2.0.0"
+    integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
+    crossorigin="anonymous"></script>
+</head>
 
-<script>
-function submitBalanceSheet(){
-  const yearMonth = document.getElementById('year_month').value;
-  const params = new URLSearchParams();
-  if (yearMonth) params.append('year_month', yearMonth);
-  const finalUrl = "{% url 'balance_sheet' %}" + (params.toString() ? '?' + params.toString() : '');
-  htmx.ajax('GET', finalUrl, { target: '#search-result', swap: 'innerHTML' });
-}
-</script>
-<table id="search-result" class="table table-striped">
+<h2>残高試算表</h2>
+<label for="year">年：</label>
+<input type="number" name="year" value="2024" hx-get="{% url 'trial_balance_by_year' %}" hx-trigger="change"
+  hx-target="#trial-balance" hx-include="this" 
+/>
+
+<table id="trial-balance" class="table table-striped">
   <thead>
     <tr>
-      <th>勘定科目</th>
       <th>借方残高</th>
+      <th>勘定科目</th>
       <th>貸方残高</th>
     </tr>
   </thead>
