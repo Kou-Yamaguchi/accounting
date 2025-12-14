@@ -1,0 +1,29 @@
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>借方残高</th>
+      <th>勘定科目</th>
+      <th>貸方残高</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in trial_balance_data %}
+    {% if item.type == "asset" or item.type == "expense" %}
+    <tr>
+      <td>{{ item.total }}</td>
+      <td>{{ item.account }}</td>
+      <td></td>
+    </tr>
+    {% else %}
+    <tr>
+      <td></td>
+      <td>{{ item.account }}</td>
+      <td>{{ item.total }}</td>
+    </tr>
+    {% endif %}
+    {% empty %}
+    <tr>
+      <td colspan="3">該当するデータがありません。</td>
+    </tr>
+    {% endfor %}
+  </tbody>
