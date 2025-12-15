@@ -2,6 +2,7 @@ from decimal import Decimal
 from datetime import date, datetime, timedelta
 from calendar import monthrange
 from dataclasses import dataclass
+from itertools import zip_longest
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
@@ -343,6 +344,65 @@ class TrialBalanceView(TemplateView):
 
         context["year"] = year
         context["trial_balance_data"] = trial_balance_data
+
+        return context
+
+
+class BalanceSheetView(TemplateView):
+    """貸借対照表ビュー"""
+    template_name = "ledger/balance_sheet_table.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # 貸借対照表のデータ取得ロジックをここに実装
+        year = int(self.request.GET.get("year", datetime.now().year))
+        context["year"] = year
+        start_date, end_date = get_fiscal_range(year)
+
+        for account_type in ['asset', 'liability', 'equity']:
+            accounts = Account.objects.filter(type=account_type).order_by("name")
+            account_data = []
+
+            for account in accounts:
+                debit_total = (
+                    Debit.objects.filter(
+                        account=account,
+                        journal_entry__date__gte=start_date,
+                        journal_entry__date__lte=end_date,
+                    )
+                    .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+                )
+                credit_total = (
+                    Credit.objects.filter(
+                        account=account,
+                        journal_entry__date__gte=start_date,
+                        journal_entry__date__lte=end_date,
+                    )
+                    .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+                )
+
+                if account_type == 'asset':
+                    balance = debit_total - credit_total
+                else:
+                    balance = credit_total - debit_total
+
+                account_data.append({
+                    "account": account,
+                    "type": account_type,
+                    "balance": balance,
+                })
+
+            context[f"{account_type}_accounts"] = account_data
+
+        # htmlのtableで貸借対照表を表示するための転置処理
+        debit_columns = context['asset_accounts']
+        credit_columns = context['liability_accounts'] + context['equity_accounts']
+
+        paired_columns = [(debit, credit) for debit, credit in zip_longest(debit_columns, credit_columns, fillvalue=None)]
+
+        print(f"Paired Columns: {paired_columns}")
+
+        context['paired_columns'] = paired_columns
 
         return context
 
