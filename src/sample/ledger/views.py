@@ -347,6 +347,54 @@ class TrialBalanceView(TemplateView):
         return context
 
 
+class BalanceSheetView(TemplateView):
+    """貸借対照表ビュー"""
+    template_name = "ledger/balance_sheet.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # 貸借対照表のデータ取得ロジックをここに実装
+        year = int(self.request.GET.get("year", datetime.now().year))
+        context["year"] = year
+        start_date, end_date = get_fiscal_range(year)
+
+        for account_type in ['asset', 'liability', 'equity']:
+            accounts = Account.objects.filter(type=account_type).order_by("name")
+            account_data = []
+
+            for account in accounts:
+                debit_total = (
+                    Debit.objects.filter(
+                        account=account,
+                        journal_entry__date__gte=start_date,
+                        journal_entry__date__lte=end_date,
+                    )
+                    .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+                )
+                credit_total = (
+                    Credit.objects.filter(
+                        account=account,
+                        journal_entry__date__gte=start_date,
+                        journal_entry__date__lte=end_date,
+                    )
+                    .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+                )
+
+                if account_type == 'asset':
+                    balance = debit_total - credit_total
+                else:
+                    balance = credit_total - debit_total
+
+                account_data.append({
+                    "account": account,
+                    "type": account_type,
+                    "balance": balance,
+                })
+
+            context[f"{account_type}_accounts"] = account_data
+        return context
+
+
 class AbstractCashBookView(TemplateView):
     """
     出納帳の共通処理を提供する抽象ビュー。

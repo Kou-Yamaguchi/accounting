@@ -1,0 +1,30 @@
+<!-- 貸借対照表 -->
+{% extends "base.html" %}
+
+{% block content %}
+<head>
+  <meta charset="utf-8">
+  <title>貸借対照表</title>
+  <script src="https://unpkg.com/htmx.org@2.0.0"
+    integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
+    crossorigin="anonymous"></script>
+</head>
+
+<h2>貸借対照表</h2>
+<label for="year">年：</label>
+<input type="number" name="year" value="2024" hx-get="{% url 'balance_sheet_by_year' %}" hx-trigger="change"
+  hx-target="#balance-table" hx-include="this" 
+/>
+<table id="balance-table" class="table table-striped">
+  <thead>
+    <tr>
+      <th>資産</th>
+      <th>金額</th>
+      <th>負債及び純資産</th>
+      <th>金額</th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
+{% endblock %}
