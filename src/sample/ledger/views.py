@@ -2,6 +2,7 @@ from decimal import Decimal
 from datetime import date, datetime, timedelta
 from calendar import monthrange
 from dataclasses import dataclass
+from itertools import zip_longest
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
@@ -349,7 +350,7 @@ class TrialBalanceView(TemplateView):
 
 class BalanceSheetView(TemplateView):
     """貸借対照表ビュー"""
-    template_name = "ledger/balance_sheet.html"
+    template_name = "ledger/balance_sheet_table.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -392,6 +393,17 @@ class BalanceSheetView(TemplateView):
                 })
 
             context[f"{account_type}_accounts"] = account_data
+
+        # htmlのtableで貸借対照表を表示するための転置処理
+        debit_columns = context['asset_accounts']
+        credit_columns = context['liability_accounts'] + context['equity_accounts']
+
+        paired_columns = [(debit, credit) for debit, credit in zip_longest(debit_columns, credit_columns, fillvalue=None)]
+
+        print(f"Paired Columns: {paired_columns}")
+
+        context['paired_columns'] = paired_columns
+
         return context
 
 

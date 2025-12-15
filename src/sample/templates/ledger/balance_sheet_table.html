@@ -8,6 +8,13 @@
     </tr>
   </thead>
   <tbody>
-
+    {% for debit, credit in paired_columns %}
+    <tr>
+      <td>{% if debit %}{{ debit.account }}{% endif %}</td>
+      <td>{% if debit %}{{ debit.balance }}{% endif %}</td>
+      <td>{% if credit %}{{ credit.account }}{% endif %}</td>
+      <td>{% if credit %}{{ credit.balance }}{% endif %}</td>
+    </tr>
+    {% endfor %}
   </tbody>
 </table>
