@@ -229,6 +229,15 @@ class GeneralLedgerView(TemplateView):
             )
         )
         return journal_entries
+
+    def _collect_account_set_from_je(self, je: JournalEntry, is_debit: bool) -> set[Account]:
+        """
+        取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
+        """
+        if is_debit:
+            return set(debit.account for debit in je.prefetched_debits)
+        else:
+            return set(credit.account for credit in je.prefetched_credits)
     
     def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
         """
@@ -252,6 +261,36 @@ class GeneralLedgerView(TemplateView):
             counter_party_name = "取引エラー"
         return counter_party_name
 
+    def _get_entry_record(self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str) -> dict:
+        """
+        総勘定元帳の1行分のレコードを作成するユーティリティメソッド。
+
+        Args:
+            je (JournalEntry): 仕訳エントリ
+            is_debit_entry (bool): 対象勘定科目が借方かどうか
+            counter_party_name (str): 相手勘定科目の名前
+
+        Returns:
+            dict: 総勘定元帳の1行分のデータ
+        """
+        if is_debit_entry:
+            debit_amount = je.prefetched_debits[0].amount
+            credit_amount = Decimal("0.00")
+            delta_running_balance = debit_amount
+        else:
+            debit_amount = Decimal("0.00")
+            credit_amount = je.prefetched_credits[0].amount
+            delta_running_balance = -credit_amount
+
+        entry_extract_running_balance = {
+            "date": je.date,
+            "summary": je.summary,
+            "counter_party": counter_party_name,
+            "debit_amount": debit_amount,
+            "credit_amount": credit_amount,
+        }
+        return entry_extract_running_balance, delta_running_balance
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -269,13 +308,9 @@ class GeneralLedgerView(TemplateView):
         running_balance = Decimal("0.00")
 
         for je in journal_entries:
-            # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits: set[Account] = set()
-            all_credits: set[Account] = set()
-
-            # プリフェッチされたリレーションを利用して勘定科目を収集
-            all_debits = set(debit.account for debit in je.prefetched_debits)
-            all_credits = set(credit.account for credit in je.prefetched_credits)
+            # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
+            all_debits: set[Account] = self._collect_account_set_from_je(je, is_debit=True)
+            all_credits: set[Account] = self._collect_account_set_from_je(je, is_debit=False)
 
             # 当該勘定科目に関連する明細行を特定
             is_debit_entry = target_account_id in {acc.id for acc in all_debits}
@@ -290,23 +325,16 @@ class GeneralLedgerView(TemplateView):
 
             # 明細タイプによって借方・貸方金額を決定
 
-            if is_debit_entry:
-                debit_amount = je.prefetched_debits[0].amount
-                credit_amount = Decimal("0.00")
-                running_balance += debit_amount
-            else:
-                debit_amount = Decimal("0.00")
-                credit_amount = je.prefetched_credits[0].amount
-                running_balance -= credit_amount
+            entry_extract_running_balance, delta_running_balance = self._get_entry_record(
+                je, is_debit_entry, counter_party_name
+            )
 
-            entry = {
-                "date": je.date,
-                "summary": je.summary,
-                "counter_party": counter_party_name,
-                "debit_amount": debit_amount,
-                "credit_amount": credit_amount,
+            running_balance += delta_running_balance
+
+            entry = entry_extract_running_balance | {
                 "running_balance": running_balance,
             }
+
             ledger_entries.append(entry)
 
         context["ledger_entries"] = ledger_entries
