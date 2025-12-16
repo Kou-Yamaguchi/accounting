@@ -1,17 +1,57 @@
 from datetime import date
 from decimal import Decimal
+from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
 
-from ledger.models import JournalEntry, Debit, Credit, Account, InitialBalance, Item, SalesDetail, PurchaseDetail, Company
+from ledger.models import (
+    JournalEntry,
+    Debit,
+    Credit,
+    Account,
+    InitialBalance,
+    Item,
+    SalesDetail,
+    PurchaseDetail,
+    Company,
+)
 from ledger.views import GeneralLedgerView, PurchaseBookView, PurchaseBookEntry
 from ledger.services import calculate_monthly_balance
 from enums.error_messages import ErrorMessages
 
 
-def create_journal_entry(entry_date: date, summary: str, debits_data: list[tuple[Account, Decimal]], credits_data: list[tuple[Account, Decimal]], company: Company = None, created_by=None) -> JournalEntry:
+@dataclass
+class AccountData:
+    name: str
+    type: str
+
+
+def create_accounts(list_account: list[AccountData]) -> dict[str, Account]:
+    """
+    テスト用の勘定科目を作成するヘルパー関数
+    Args:
+        list_account (list[AccountData]): 作成する勘定科目データのリスト
+
+    Returns:
+        dict {勘定科目名: Accountオブジェクト, ...}
+    """
+    accounts = {}
+    for acc_data in list_account:
+        account = Account.objects.create(name=acc_data.name, type=acc_data.type)
+        accounts[acc_data.name] = account
+    return accounts
+
+
+def create_journal_entry(
+    entry_date: date,
+    summary: str,
+    debits_data: list[tuple[Account, Decimal]],
+    credits_data: list[tuple[Account, Decimal]],
+    company: Company = None,
+    created_by=None,
+) -> JournalEntry:
     """
     取引 (JournalEntry) とその明細 (Debit/Credit) を作成するヘルパー関数
     debits_data/credits_data は [(Accountオブジェクト, Decimal金額), ...] のリスト
@@ -26,16 +66,21 @@ def create_journal_entry(entry_date: date, summary: str, debits_data: list[tuple
     Returns:
         JournalEntry: 作成された取引オブジェクト
     """
-    entry = JournalEntry.objects.create(date=entry_date, summary=summary, company=company, created_by=created_by)
+    entry = JournalEntry.objects.create(
+        date=entry_date, summary=summary, company=company, created_by=created_by
+    )
 
     for account, amount in debits_data:
-        Debit.objects.create(journal_entry=entry, account=account, amount=amount, created_by=created_by)
+        Debit.objects.create(
+            journal_entry=entry, account=account, amount=amount, created_by=created_by
+        )
 
     for account, amount in credits_data:
-        Credit.objects.create(journal_entry=entry, account=account, amount=amount, created_by=created_by)
+        Credit.objects.create(
+            journal_entry=entry, account=account, amount=amount, created_by=created_by
+        )
 
     return entry
-
 
 
 class JournalEntryViewTest(TestCase):
@@ -48,13 +93,17 @@ class JournalEntryViewTest(TestCase):
             username="testuser", password="testpass"
         )
         self.client.force_login(self.user)
-        self.cash = Account.objects.create(name="現金", type="asset")
-        self.sales = Account.objects.create(name="売上", type="revenue")
+        self.accounts: dict[str, Account] = create_accounts(
+            [
+                AccountData(name="現金", type="asset"),
+                AccountData(name="売上", type="revenue"),
+            ]
+        )
         self.entry = create_journal_entry(
             entry_date=date(2024, 1, 1),
             summary="初期取引",
-            debits_data=[(self.cash, Decimal("1000.00"))],
-            credits_data=[(self.sales, Decimal("1000.00"))],
+            debits_data=[(self.accounts["現金"], Decimal("1000.00"))],
+            credits_data=[(self.accounts["売上"], Decimal("1000.00"))],
             created_by=self.user,
         )
 
@@ -117,8 +166,8 @@ class JournalEntryViewTest(TestCase):
         data = self.build_post(
             date="2024-01-01",
             summary="テスト取引",
-            debit_items=[{"account": self.cash.id, "amount": "100.00"}],
-            credit_items=[{"account": self.sales.id, "amount": "100.00"}],
+            debit_items=[{"account": self.accounts["現金"].id, "amount": "100.00"}],
+            credit_items=[{"account": self.accounts["売上"].id, "amount": "100.00"}],
         )
         response = self.client.post("/ledger/new/", data)
         self.assertEqual(response.status_code, 302)
@@ -150,14 +199,14 @@ class JournalEntryViewTest(TestCase):
             debit_items=[
                 {
                     "id": self.entry.debits.first().id,
-                    "account": self.cash.id,
+                    "account": self.accounts["現金"].id,
                     "amount": "200.00",
                 }
             ],
             credit_items=[
                 {
                     "id": self.entry.credits.first().id,
-                    "account": self.sales.id,
+                    "account": self.accounts["売上"].id,
                     "amount": "200.00",
                 }
             ],
@@ -188,8 +237,14 @@ class JournalEntryValidationTest(TestCase):
             username="testuser", password="testpass"
         )
         self.client.force_login(self.user)
-        self.cash = Account.objects.create(name="現金", type="asset")
-        self.sales = Account.objects.create(name="売上", type="revenue")
+        self.accounts: dict[str, Account] = create_accounts(
+            [
+                AccountData(name="現金", type="asset"),
+                AccountData(name="売上", type="revenue"),
+            ]
+        )
+        # self.accounts["現金"] = Account.objects.create(name="現金", type="asset")
+        # self.accounts["売上"] = Account.objects.create(name="売上", type="revenue")
 
         self.base_post = {
             "date": "2024-01-01",
@@ -244,8 +299,8 @@ class JournalEntryValidationTest(TestCase):
         data = self.build_post(
             date="2024-01-01",
             summary="負の金額取引",
-            debit_items=[{"account": self.cash.id, "amount": "-100.00"}],
-            credit_items=[{"account": self.sales.id, "amount": "100.00"}],
+            debit_items=[{"account": self.accounts["現金"].id, "amount": "-100.00"}],
+            credit_items=[{"account": self.accounts["売上"].id, "amount": "100.00"}],
         )
         response = self.client.post("/ledger/new/", data)
         self.assertEqual(response.status_code, 200)
@@ -255,8 +310,8 @@ class JournalEntryValidationTest(TestCase):
         data = self.build_post(
             date="2024-01-01",
             summary="不均衡取引",
-            debit_items=[{"account": self.cash.id, "amount": "100.00"}],
-            credit_items=[{"account": self.sales.id, "amount": "50.00"}],
+            debit_items=[{"account": self.accounts["現金"].id, "amount": "100.00"}],
+            credit_items=[{"account": self.accounts["売上"].id, "amount": "50.00"}],
         )
         response = self.client.post("/ledger/new/", data)
         self.assertEqual(response.status_code, 200)
@@ -272,12 +327,21 @@ class GeneralLedgerViewTest(TestCase):
         # テストに必要な初期データ（勘定科目）を作成
         self.factory = RequestFactory()
 
-        self.cash = Account.objects.create(name="現金", type="Asset")
-        self.sales = Account.objects.create(name="売上", type="Revenue")
-        self.purchases = Account.objects.create(name="仕入", type="Expense")
-        self.accounts_payable = Account.objects.create(name="買掛金", type="Liability")
-        self.supplies = Account.objects.create(name="消耗品", type="Asset")
+        self.accounts = create_accounts(
+            [
+                AccountData(name="現金", type="Asset"),
+                AccountData(name="売上", type="Revenue"),
+                AccountData(name="仕入", type="Expense"),
+                AccountData(name="買掛金", type="Liability"),
+                AccountData(name="消耗品", type="Asset"),
+            ]
+        )
 
+        self.cash = self.accounts["現金"]
+        self.sales = self.accounts["売上"]
+        self.purchases = self.accounts["仕入"]
+        self.accounts_payable = self.accounts["買掛金"]
+        self.supplies = self.accounts["消耗品"]
         # テスト対象のビューにアクセスするためのURLを準備
         self.url_template = "/ledger/{account_name}/"
 
@@ -549,12 +613,20 @@ class CashBookCalculationTest(TestCase):
     # テスト開始前に必要なマスタデータ（勘定科目）を作成
     @classmethod
     def setUpTestData(cls):
+        cls.accounts = create_accounts(
+            [
+                AccountData(name="現金", type="Asset"),
+                AccountData(name="売上", type="Revenue"),
+                AccountData(name="消耗品費", type="Expense"),
+                AccountData(name="雑収入", type="Revenue"),
+            ]
+        )
         # 現金出納帳の対象科目
-        cls.cash_account = Account.objects.create(name="現金")
+        cls.cash_account = cls.accounts["現金"]
         # 相手勘定科目
-        cls.sales_account = Account.objects.create(name="売上")
-        cls.supplies_account = Account.objects.create(name="消耗品費")
-        cls.unknown_account = Account.objects.create(name="雑収入")
+        cls.sales_account = cls.accounts["売上"]
+        cls.supplies_account = cls.accounts["消耗品費"]
+        cls.unknown_account = cls.accounts["雑収入"]
 
     # --- ユーザーが要求したケース ---
 
@@ -605,7 +677,7 @@ class CashBookCalculationTest(TestCase):
             "売上入金",
             [(self.cash_account, Decimal("5000"))],
             [(self.sales_account, Decimal("5000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         # 4月20日: 支出 (消耗品費) 2000
@@ -614,7 +686,7 @@ class CashBookCalculationTest(TestCase):
             "文房具購入",
             [(self.supplies_account, Decimal("2000"))],
             [(self.cash_account, Decimal("2000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         result = calculate_monthly_balance("現金", 2025, 4)
@@ -655,7 +727,7 @@ class CashBookCalculationTest(TestCase):
             "3月入金",
             [(self.cash_account, Decimal("10000"))],
             [(self.unknown_account, Decimal("10000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         # --- 3月集計結果確認 ---
@@ -674,7 +746,7 @@ class CashBookCalculationTest(TestCase):
             "4月出金",
             [(self.supplies_account, Decimal("5000"))],
             [(self.cash_account, Decimal("5000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         result_april = calculate_monthly_balance("現金", 2025, 4)
@@ -710,7 +782,7 @@ class CashBookCalculationTest(TestCase):
             "売上入金",
             [(self.cash_account, Decimal("5000"))],
             [(self.sales_account, Decimal("5000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         # 5月最終残高: 10000 + 5000 = 15000
@@ -754,7 +826,7 @@ class CashBookCalculationTest(TestCase):
             "6月取引",
             [(self.cash_account, Decimal("1000"))],
             [(self.sales_account, Decimal("1000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         # 7月1日 (月初): 支出 500 -> 7月の集計に含める
@@ -763,7 +835,7 @@ class CashBookCalculationTest(TestCase):
             "7月1日取引",
             [(self.supplies_account, Decimal("500"))],
             [(self.cash_account, Decimal("500"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         # 7月31日 (月末): 収入 2000 -> 7月の集計に含める
@@ -772,7 +844,7 @@ class CashBookCalculationTest(TestCase):
             "7月31日取引",
             [(self.cash_account, Decimal("2000"))],
             [(self.sales_account, Decimal("2000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         # 8月1日 (翌月): 支出 3000 -> 7月の集計に含めない
@@ -781,7 +853,7 @@ class CashBookCalculationTest(TestCase):
             "8月1日取引",
             [(self.supplies_account, Decimal("3000"))],
             [(self.cash_account, Decimal("3000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         result_july = calculate_monthly_balance("現金", 2025, 7)
@@ -817,7 +889,7 @@ class CashBookCalculationTest(TestCase):
             "",
             [(self.cash_account, Decimal("5000"))],
             [(self.sales_account, Decimal("5000"))],
-            None, # Company is None for this test
+            None,  # Company is None for this test
         )
 
         result = calculate_monthly_balance("現金", 2025, 8)
@@ -835,6 +907,7 @@ class PurchaseBookViewTest(TestCase):
     """
     PurchaseBookViewのテスト
     """
+
     def setUp(self):
         self.user = get_user_model().objects.create_user(
             username="testuser", password="testpass"
@@ -844,9 +917,16 @@ class PurchaseBookViewTest(TestCase):
     # 必要なマスタデータを作成
     @classmethod
     def setUpTestData(cls):
-        cls.purchase = Account.objects.create(name="仕入")
-        cls.accounts_payable = Account.objects.create(name="買掛金")
-        cls.cash = Account.objects.create(name="現金")
+        cls.accounts = create_accounts(
+            [
+                AccountData(name="仕入", type="Expense"),
+                AccountData(name="買掛金", type="Liability"),
+                AccountData(name="現金", type="Asset"),
+            ]
+        )
+        cls.purchase = cls.accounts["仕入"]
+        cls.accounts_payable = cls.accounts["買掛金"]
+        cls.cash = cls.accounts["現金"]
 
         cls.co_a = Company.objects.create(name="甲社")
         cls.co_b = Company.objects.create(name="乙社")
@@ -939,7 +1019,9 @@ class PurchaseBookViewTest(TestCase):
 
         # 総仕入高の確認
         self.assertEqual(
-            closing_entry.total_purchase, 10000, "総仕入高には通常仕入のみが計上されること"
+            closing_entry.total_purchase,
+            10000,
+            "総仕入高には通常仕入のみが計上されること",
         )
         # 仕入戻し高の確認
         self.assertEqual(
@@ -951,7 +1033,11 @@ class PurchaseBookViewTest(TestCase):
         )
 
         # 仕入戻し取引の表示内容確認
-        return_header: PurchaseBookEntry = response.context["purchase_book"].book_entries[1]  # 2件目の取引が戻し
+        return_header: PurchaseBookEntry = response.context[
+            "purchase_book"
+        ].book_entries[
+            1
+        ]  # 2件目の取引が戻し
         self.assertTrue(
             return_header.is_return, "仕入戻し取引であると識別されていること"
         )
