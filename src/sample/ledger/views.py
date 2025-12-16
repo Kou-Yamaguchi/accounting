@@ -17,7 +17,7 @@ from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ImproperlyConfigured
 
-from ledger.models import JournalEntry, Account, Debit, Credit, PurchaseDetail
+from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import calculate_monthly_balance, get_fiscal_range
 from enums.error_messages import ErrorMessages
@@ -298,6 +298,51 @@ class TrialBalanceView(TemplateView):
     """
     template_name = "ledger/trial_balance_partial.html"
 
+    def _calculate_each_entry_total(self, entry: Entry, account: Account, start_date: date, end_date: date):
+        """
+        各勘定科目の借方・貸方合計を計算するユーティリティメソッド。
+
+        Args:
+            entry (Entry): DebitまたはCreditモデル
+            account (Account): 対象の勘定科目
+            start_date (date): 期間開始日
+            end_date (date): 期間終了日
+
+        Returns:
+            Decimal: 指定期間内の借方or貸方の合計金額
+        """
+        total_amount = (
+            entry.objects.filter(
+                account=account,
+                journal_entry__date__gte=start_date,
+                journal_entry__date__lte=end_date,
+            )
+            .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+        )
+        return total_amount
+
+    def _calculate_account_total(self, account: Account, start_date: date, end_date: date):
+        """
+        各勘定科目の合計金額を計算するユーティリティメソッド。
+
+        Args:
+            account (Account): 対象の勘定科目
+            start_date (date): 期間開始日
+            end_date (date): 期間終了日
+
+        Returns:
+            Decimal: 指定期間内の勘定科目の合計金額
+        """
+        debit_total = self._calculate_each_entry_total(Debit, account, start_date, end_date)
+        credit_total = self._calculate_each_entry_total(Credit, account, start_date, end_date)
+
+        if account.type in ['asset', 'expense']:
+            total_amount = debit_total - credit_total
+        else:
+            total_amount = credit_total - debit_total
+        
+        return total_amount
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         year = int(self.request.GET.get("year"))
@@ -310,29 +355,7 @@ class TrialBalanceView(TemplateView):
         trial_balance_data = []
 
         for account in accounts:
-            # 各勘定科目の借方・貸方合計を計算
-
-            debit_total = (
-                Debit.objects.filter(
-                    account=account,
-                    journal_entry__date__gte=start_date,
-                    journal_entry__date__lte=end_date,
-                )
-                .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
-            )
-            credit_total = (
-                Credit.objects.filter(
-                    account=account,
-                    journal_entry__date__gte=start_date,
-                    journal_entry__date__lte=end_date,
-                )
-                .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
-            )
-
-            if account.type == 'asset' or account.type == 'expense':
-                total = debit_total - credit_total
-            else:
-                total = credit_total - debit_total
+            total = self._calculate_account_total(account, start_date, end_date)
 
             trial_balance_data.append({
                 "account": account,
