@@ -16,5 +16,11 @@
       <td>{% if credit %}{{ credit.balance }}{% endif %}</td>
     </tr>
     {% endfor %}
+    <tr>
+      <td><strong>合計</strong></td>
+      <td><strong>{{ total_debits }}</strong></td>
+      <td><strong>合計</strong></td>
+      <td><strong>{{ total_credits }}</strong></td>
+    </tr>
   </tbody>
 </table>

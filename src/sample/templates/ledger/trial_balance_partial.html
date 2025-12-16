@@ -11,13 +11,13 @@
     {% if item.type == "asset" or item.type == "expense" %}
     <tr>
       <td>{{ item.total }}</td>
-      <td>{{ item.account }}</td>
+      <td>{{ item.name }}</td>
       <td></td>
     </tr>
     {% else %}
     <tr>
       <td></td>
-      <td>{{ item.account }}</td>
+      <td>{{ item.name }}</td>
       <td>{{ item.total }}</td>
     </tr>
     {% endif %}
@@ -26,4 +26,9 @@
       <td colspan="3">該当するデータがありません。</td>
     </tr>
     {% endfor %}
+    <tr>
+      <td><strong>{{ total_debits }}</strong></td>
+      <td><strong>合計</strong></td>
+      <td><strong>{{ total_credits }}</strong></td>
+    </tr>
   </tbody>

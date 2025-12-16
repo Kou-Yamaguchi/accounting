@@ -1,6 +1,7 @@
+from datetime import date, datetime
+
 from django.conf import settings
 from django.db import models
-from datetime import date, datetime
 
 ACCOUNT_TYPE_CHOICES = [
     ("asset", "資産"),
@@ -113,9 +114,21 @@ class JournalEntry(models.Model):
 
     def __str__(self):
         return f"{self.date} — {self.summary[:50]}"
+    
+
+class Entry(models.Model):
+    """
+    抽象基底クラス: 仕訳の明細行 (借方・貸方) の共通部分を定義
+    """
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
 
 
-class Debit(models.Model):
+class Debit(Entry):
     """
     debits (借方明細)
     """
@@ -126,9 +139,6 @@ class Debit(models.Model):
     account = models.ForeignKey(
         Account, on_delete=models.RESTRICT, related_name="debits"
     )
-    amount = models.DecimalField(max_digits=14, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -152,7 +162,7 @@ class Debit(models.Model):
         return f"Debit {self.amount} — {self.account}"
 
 
-class Credit(models.Model):
+class Credit(Entry):
     """
     credits (貸方明細)
     """
@@ -163,9 +173,6 @@ class Credit(models.Model):
     account = models.ForeignKey(
         Account, on_delete=models.RESTRICT, related_name="credits"
     )
-    amount = models.DecimalField(max_digits=14, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

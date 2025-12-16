@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from django.db.models import Q
 from django.db.models import Sum
 
-from .models import JournalEntry, InitialBalance, Account, Debit, Credit, PurchaseDetail, Item, Company
+from .models import JournalEntry, InitialBalance, Account, Entry, Debit, Credit, PurchaseDetail, Item, Company
 
 
 def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple[date, date]:
@@ -229,3 +229,54 @@ def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
 
 def generate_purchase_book(year: int, month: int) -> list:
     pass
+
+def calculate_each_entry_total(
+    entry: Entry, account: Account, start_date: date, end_date: date
+):
+    """
+    各勘定科目の借方・貸方合計を計算するユーティリティメソッド。
+
+    Args:
+        entry (Entry): DebitまたはCreditモデル
+        account (Account): 対象の勘定科目
+        start_date (date): 期間開始日
+        end_date (date): 期間終了日
+
+    Returns:
+        Decimal: 指定期間内の借方or貸方の合計金額
+    """
+    total_amount = entry.objects.filter(
+        account=account,
+        journal_entry__date__gte=start_date,
+        journal_entry__date__lte=end_date,
+    ).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+    return total_amount
+
+
+def calculate_account_total(
+    account: Account, start_date: date, end_date: date
+):
+    """
+    各勘定科目の合計金額を計算するユーティリティメソッド。
+
+    Args:
+        account (Account): 対象の勘定科目
+        start_date (date): 期間開始日
+        end_date (date): 期間終了日
+
+    Returns:
+        Decimal: 指定期間内の勘定科目の合計金額
+    """
+    debit_total = calculate_each_entry_total(
+        Debit, account, start_date, end_date
+    )
+    credit_total = calculate_each_entry_total(
+        Credit, account, start_date, end_date
+    )
+
+    if account.type in ["asset", "expense"]:
+        total_amount = debit_total - credit_total
+    else:
+        total_amount = credit_total - debit_total
+
+    return total_amount

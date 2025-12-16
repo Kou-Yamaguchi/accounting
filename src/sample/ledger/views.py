@@ -17,9 +17,13 @@ from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ImproperlyConfigured
 
-from ledger.models import JournalEntry, Account, Debit, Credit, PurchaseDetail
+from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
-from ledger.services import calculate_monthly_balance, get_fiscal_range
+from ledger.services import (
+    calculate_monthly_balance,
+    get_fiscal_range,
+    calculate_account_total,
+)
 from enums.error_messages import ErrorMessages
 
 @dataclass
@@ -198,19 +202,17 @@ class GeneralLedgerView(TemplateView):
 
     template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def _get_all_journal_entries_for_account(self, account: Account) -> list[JournalEntry]:
+        """
+        指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
+        N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
 
-        # URLから勘定科目名を取得
-        account_name = self.kwargs["account_name"]
+        Args:
+            account (Account): 対象の勘定科目
 
-        # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
-        account = get_object_or_404(Account, name=account_name)
-        context["account"] = account
-        target_account_id = account.id
-
-        # 取得した勘定科目に関連する取引の科目の種類を全て取得
-        # N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
+        Returns:
+            QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
+        """
         journal_entries = (
             JournalEntry.objects.filter(
                 Q(debits__account=account) | Q(credits__account=account)
@@ -230,18 +232,89 @@ class GeneralLedgerView(TemplateView):
                 ),
             )
         )
+        return journal_entries
+
+    def _collect_account_set_from_je(self, je: JournalEntry, is_debit: bool) -> set[Account]:
+        """
+        取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
+        """
+        if is_debit:
+            return set(debit.account for debit in je.prefetched_debits)
+        else:
+            return set(credit.account for credit in je.prefetched_credits)
+
+    def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
+        """
+        相手勘定科目の名前を決定するユーティリティメソッド。
+
+        Args:
+            other_accounts (set[Account]): 対象勘定科目以外の勘定科目のセット
+
+        Returns:
+            str: 相手勘定科目の名前
+        """
+        counter_party_name = ""
+        if len(other_accounts) == 1:
+            # 相手勘定科目が1つの場合、その名前をセット
+            counter_party_name = [acc.name for acc in other_accounts][0]
+        elif len(other_accounts) > 1:
+            # 相手勘定科目が複数の場合
+            counter_party_name = "諸口"
+        else:
+            # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
+            counter_party_name = "取引エラー"
+        return counter_party_name
+
+    def _get_entry_record(self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str) -> dict:
+        """
+        総勘定元帳の1行分のレコードを作成するユーティリティメソッド。
+
+        Args:
+            je (JournalEntry): 仕訳エントリ
+            is_debit_entry (bool): 対象勘定科目が借方かどうか
+            counter_party_name (str): 相手勘定科目の名前
+
+        Returns:
+            dict: 総勘定元帳の1行分のデータ
+        """
+        if is_debit_entry:
+            debit_amount = je.prefetched_debits[0].amount
+            credit_amount = Decimal("0.00")
+            delta_running_balance = debit_amount
+        else:
+            debit_amount = Decimal("0.00")
+            credit_amount = je.prefetched_credits[0].amount
+            delta_running_balance = -credit_amount
+
+        entry_extract_running_balance = {
+            "date": je.date,
+            "summary": je.summary,
+            "counter_party": counter_party_name,
+            "debit_amount": debit_amount,
+            "credit_amount": credit_amount,
+        }
+        return entry_extract_running_balance, delta_running_balance
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # URLから勘定科目名を取得
+        account_name: str = self.kwargs["account_name"]
+
+        # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
+        account: Account = get_object_or_404(Account, name=account_name)
+        context["account"] = account
+        target_account_id: int = account.id
+
+        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(account)
 
         ledger_entries = []
         running_balance = Decimal("0.00")
 
         for je in journal_entries:
-            # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits = set()
-            all_credits = set()
-
-            # プリフェッチされたリレーションを利用して勘定科目を収集
-            all_debits = set(debit.account for debit in je.prefetched_debits)
-            all_credits = set(credit.account for credit in je.prefetched_credits)
+            # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
+            all_debits: set[Account] = self._collect_account_set_from_je(je, is_debit=True)
+            all_credits: set[Account] = self._collect_account_set_from_je(je, is_debit=False)
 
             # 当該勘定科目に関連する明細行を特定
             is_debit_entry = target_account_id in {acc.id for acc in all_debits}
@@ -252,42 +325,32 @@ class GeneralLedgerView(TemplateView):
             else:
                 other_accounts = all_debits
 
-            # 3. 相手勘定科目の決定ロジック (単一 vs 諸口)
-            counter_party_name = ""
-            if len(other_accounts) == 1:
-                # 相手勘定科目が1つの場合、その名前をセット
-                counter_party_name = [acc.name for acc in other_accounts][0]
-            elif len(other_accounts) > 1:
-                # 相手勘定科目が複数の場合
-                counter_party_name = "諸口"
-            else:
-                # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
-                counter_party_name = "取引エラー"
+            counter_party_name = self._determine_counter_party_name(other_accounts)
 
             # 明細タイプによって借方・貸方金額を決定
 
-            if is_debit_entry:
-                debit_amount = je.prefetched_debits[0].amount
-                credit_amount = Decimal("0.00")
-                running_balance += debit_amount
-            else:
-                debit_amount = Decimal("0.00")
-                credit_amount = je.prefetched_credits[0].amount
-                running_balance -= credit_amount
+            entry_extract_running_balance, delta_running_balance = self._get_entry_record(
+                je, is_debit_entry, counter_party_name
+            )
 
-            entry = {
-                "date": je.date,
-                "summary": je.summary,
-                "counter_party": counter_party_name,
-                "debit_amount": debit_amount,
-                "credit_amount": credit_amount,
+            running_balance += delta_running_balance
+
+            entry = entry_extract_running_balance | {
                 "running_balance": running_balance,
             }
+
             ledger_entries.append(entry)
 
         context["ledger_entries"] = ledger_entries
 
         return context
+
+
+@dataclass
+class TrialBalanceEntry:
+    name: str
+    type: str
+    total: Decimal
 
 
 class TrialBalanceView(TemplateView):
@@ -307,41 +370,28 @@ class TrialBalanceView(TemplateView):
         # 全勘定科目を取得
         accounts = Account.objects.all().order_by("type", "name")
 
-        trial_balance_data = []
+        trial_balance_data: list[TrialBalanceEntry] = []
+
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
 
         for account in accounts:
-            # 各勘定科目の借方・貸方合計を計算
+            total = calculate_account_total(account, start_date, end_date)
 
-            debit_total = (
-                Debit.objects.filter(
-                    account=account,
-                    journal_entry__date__gte=start_date,
-                    journal_entry__date__lte=end_date,
-                )
-                .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
-            )
-            credit_total = (
-                Credit.objects.filter(
-                    account=account,
-                    journal_entry__date__gte=start_date,
-                    journal_entry__date__lte=end_date,
-                )
-                .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
+            trial_balance_data_entry = TrialBalanceEntry(
+                name=account.name,
+                type=account.type,
+                total=total,
             )
 
-            if account.type == 'asset' or account.type == 'expense':
-                total = debit_total - credit_total
+            trial_balance_data.append(trial_balance_data_entry)
+
+            if account.type in ['asset', 'expense']:
+                total_debits += total
             else:
-                total = credit_total - debit_total
-
-            trial_balance_data.append({
-                "account": account,
-                "type": account.type,
-                "total": total,
-            })
-
-        print(trial_balance_data)
-
+                total_credits += total
+        context["total_debits"] = total_debits
+        context["total_credits"] = total_credits
         context["year"] = year
         context["trial_balance_data"] = trial_balance_data
 
@@ -359,48 +409,34 @@ class BalanceSheetView(TemplateView):
         context["year"] = year
         start_date, end_date = get_fiscal_range(year)
 
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
+
         for account_type in ['asset', 'liability', 'equity']:
             accounts = Account.objects.filter(type=account_type).order_by("name")
             account_data = []
 
             for account in accounts:
-                debit_total = (
-                    Debit.objects.filter(
-                        account=account,
-                        journal_entry__date__gte=start_date,
-                        journal_entry__date__lte=end_date,
-                    )
-                    .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
-                )
-                credit_total = (
-                    Credit.objects.filter(
-                        account=account,
-                        journal_entry__date__gte=start_date,
-                        journal_entry__date__lte=end_date,
-                    )
-                    .aggregate(Sum('amount'))['amount__sum'] or Decimal("0.00")
-                )
-
-                if account_type == 'asset':
-                    balance = debit_total - credit_total
-                else:
-                    balance = credit_total - debit_total
+                total = calculate_account_total(account, start_date, end_date)
 
                 account_data.append({
                     "account": account,
                     "type": account_type,
-                    "balance": balance,
+                    "balance": total,
                 })
 
             context[f"{account_type}_accounts"] = account_data
+
+            total_debits += sum(item["balance"] for item in account_data if item["type"] is "asset")
+            total_credits += sum(item["balance"] for item in account_data if item["type"] in ["liability", "equity"])
+        context["total_debits"] = total_debits
+        context["total_credits"] = total_credits
 
         # htmlのtableで貸借対照表を表示するための転置処理
         debit_columns = context['asset_accounts']
         credit_columns = context['liability_accounts'] + context['equity_accounts']
 
         paired_columns = [(debit, credit) for debit, credit in zip_longest(debit_columns, credit_columns, fillvalue=None)]
-
-        print(f"Paired Columns: {paired_columns}")
 
         context['paired_columns'] = paired_columns
 
