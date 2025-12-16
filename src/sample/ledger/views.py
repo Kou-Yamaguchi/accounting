@@ -198,19 +198,17 @@ class GeneralLedgerView(TemplateView):
 
     template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def _get_all_journal_entries_for_account(self, account: Account) -> list[JournalEntry]:
+        """
+        指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
+        N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
 
-        # URLから勘定科目名を取得
-        account_name = self.kwargs["account_name"]
+        Args:
+            account (Account): 対象の勘定科目
 
-        # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
-        account = get_object_or_404(Account, name=account_name)
-        context["account"] = account
-        target_account_id = account.id
-
-        # 取得した勘定科目に関連する取引の科目の種類を全て取得
-        # N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
+        Returns:
+            QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
+        """
         journal_entries = (
             JournalEntry.objects.filter(
                 Q(debits__account=account) | Q(credits__account=account)
@@ -230,14 +228,50 @@ class GeneralLedgerView(TemplateView):
                 ),
             )
         )
+        return journal_entries
+    
+    def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
+        """
+        相手勘定科目の名前を決定するユーティリティメソッド。
+
+        Args:
+            other_accounts (set[Account]): 対象勘定科目以外の勘定科目のセット
+
+        Returns:
+            str: 相手勘定科目の名前
+        """
+        counter_party_name = ""
+        if len(other_accounts) == 1:
+            # 相手勘定科目が1つの場合、その名前をセット
+            counter_party_name = [acc.name for acc in other_accounts][0]
+        elif len(other_accounts) > 1:
+            # 相手勘定科目が複数の場合
+            counter_party_name = "諸口"
+        else:
+            # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
+            counter_party_name = "取引エラー"
+        return counter_party_name
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # URLから勘定科目名を取得
+        account_name: str = self.kwargs["account_name"]
+
+        # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
+        account: Account = get_object_or_404(Account, name=account_name)
+        context["account"] = account
+        target_account_id: int = account.id
+
+        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(account)
 
         ledger_entries = []
         running_balance = Decimal("0.00")
 
         for je in journal_entries:
             # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits = set()
-            all_credits = set()
+            all_debits: set[Account] = set()
+            all_credits: set[Account] = set()
 
             # プリフェッチされたリレーションを利用して勘定科目を収集
             all_debits = set(debit.account for debit in je.prefetched_debits)
@@ -252,17 +286,7 @@ class GeneralLedgerView(TemplateView):
             else:
                 other_accounts = all_debits
 
-            # 3. 相手勘定科目の決定ロジック (単一 vs 諸口)
-            counter_party_name = ""
-            if len(other_accounts) == 1:
-                # 相手勘定科目が1つの場合、その名前をセット
-                counter_party_name = [acc.name for acc in other_accounts][0]
-            elif len(other_accounts) > 1:
-                # 相手勘定科目が複数の場合
-                counter_party_name = "諸口"
-            else:
-                # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
-                counter_party_name = "取引エラー"
+            counter_party_name = self._determine_counter_party_name(other_accounts)
 
             # 明細タイプによって借方・貸方金額を決定
 
