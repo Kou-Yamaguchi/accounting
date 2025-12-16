@@ -11,6 +11,33 @@ from ledger.services import calculate_monthly_balance
 from enums.error_messages import ErrorMessages
 
 
+def create_journal_entry(entry_date: date, summary: str, debits_data: list[tuple[Account, Decimal]], credits_data: list[tuple[Account, Decimal]], company: Company = None, created_by=None) -> JournalEntry:
+    """
+    取引 (JournalEntry) とその明細 (Debit/Credit) を作成するヘルパー関数
+    debits_data/credits_data は [(Accountオブジェクト, Decimal金額), ...] のリスト
+    Args:
+        entry_date (date): 取引日
+        summary (str): 摘要
+        debits_data (list[tuple[Account, Decimal]]): 借方明細データ
+        credits_data (list[tuple[Account, Decimal]]): 貸方明細データ
+        company (Company, optional): 会社情報。指定しない場合はNone。
+        created_by (User, optional): 作成者情報。指定しない場合はNone。
+
+    Returns:
+        JournalEntry: 作成された取引オブジェクト
+    """
+    entry = JournalEntry.objects.create(date=entry_date, summary=summary, company=company, created_by=created_by)
+
+    for account, amount in debits_data:
+        Debit.objects.create(journal_entry=entry, account=account, amount=amount, created_by=created_by)
+
+    for account, amount in credits_data:
+        Credit.objects.create(journal_entry=entry, account=account, amount=amount, created_by=created_by)
+
+    return entry
+
+
+
 class JournalEntryViewTest(TestCase):
     """
     journal_entryテーブルに対するCRUD操作のテスト
@@ -23,19 +50,11 @@ class JournalEntryViewTest(TestCase):
         self.client.force_login(self.user)
         self.cash = Account.objects.create(name="現金", type="asset")
         self.sales = Account.objects.create(name="売上", type="revenue")
-        self.entry = JournalEntry.objects.create(
-            date="2024-01-01", summary="初期取引", created_by=self.user
-        )
-        Debit.objects.create(
-            journal_entry=self.entry,
-            account=self.cash,
-            amount=1000.00,
-            created_by=self.user,
-        )
-        Credit.objects.create(
-            journal_entry=self.entry,
-            account=self.sales,
-            amount=1000.00,
+        self.entry = create_journal_entry(
+            entry_date=date(2024, 1, 1),
+            summary="初期取引",
+            debits_data=[(self.cash, Decimal("1000.00"))],
+            credits_data=[(self.sales, Decimal("1000.00"))],
             created_by=self.user,
         )
 
@@ -262,21 +281,6 @@ class GeneralLedgerViewTest(TestCase):
         # テスト対象のビューにアクセスするためのURLを準備
         self.url_template = "/ledger/{account_name}/"
 
-    def create_journal_entry(self, entry_date, summary, debits_data, credits_data):
-        """
-        取引 (JournalEntry) とその明細 (Debit/Credit) を作成するヘルパー関数
-        debits_data/credits_data は [(Accountオブジェクト, Decimal金額), ...] のリスト
-        """
-        entry = JournalEntry.objects.create(date=entry_date, summary=summary)
-
-        for account, amount in debits_data:
-            Debit.objects.create(journal_entry=entry, account=account, amount=amount)
-
-        for account, amount in credits_data:
-            Credit.objects.create(journal_entry=entry, account=account, amount=amount)
-
-        return entry
-
     # ----------------------------------------------------
     # 1. 1 vs 1 (単純仕訳) のテスト
     # ----------------------------------------------------
@@ -286,7 +290,7 @@ class GeneralLedgerViewTest(TestCase):
         現金勘定をテスト対象とし、相手科目が1つの場合の借方（Debit）エントリを検証
         仕訳: 現金 100 / 売上 100
         """
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 1),
             "商品売上（現金）",
             [(self.cash, Decimal("100.00"))],  # 現金が借方
@@ -314,7 +318,7 @@ class GeneralLedgerViewTest(TestCase):
         買掛金勘定をテスト対象とし、相手科目が1つの場合の貸方（Credit）エントリを検証
         仕訳: 仕入 50 / 買掛金 50
         """
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 2),
             "商品仕入（掛）",
             [(self.purchases, Decimal("50.00"))],
@@ -344,7 +348,7 @@ class GeneralLedgerViewTest(TestCase):
         現金勘定をテスト対象とし、相手科目が複数の場合の借方エントリを検証
         仕訳: 現金 150 / 売上 100, 消耗品 50 （売上と消耗品が相手）
         """
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 3),
             "売上と備品の一部を現金受領",
             [(self.cash, Decimal("150.00"))],  # 相手が1つ
@@ -373,7 +377,7 @@ class GeneralLedgerViewTest(TestCase):
         現金勘定をテスト対象とし、相手科目が複数の場合の貸方エントリを検証
         仕訳: 現金 80, 買掛金 20 / 売上 100 （現金と買掛金が相手）
         """
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 4),
             "商品売上（一部現金、一部掛）",
             [
@@ -400,7 +404,7 @@ class GeneralLedgerViewTest(TestCase):
         現金勘定をテスト対象とし、相手科目が複数の場合の借方エントリを検証
         仕訳: 現金 150 / 売上 100, 消耗品 50 （売上と消耗品が相手）
         """
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 3),
             "売上と備品の一部を現金受領",
             [(self.cash, Decimal("150.00"))],  # 現金が借方
@@ -427,7 +431,7 @@ class GeneralLedgerViewTest(TestCase):
         売上勘定をテスト対象とし、相手科目が複数の場合の貸方エントリを検証
         仕訳: 現金 80, 買掛金 20 / 売上 100 （現金と買掛金が相手）
         """
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 4),
             "商品売上（一部現金、一部掛）",
             [
@@ -460,7 +464,7 @@ class GeneralLedgerViewTest(TestCase):
         """
 
         # 1. 現金 / 売上 100 (残高: 借方 100)
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 10),
             "売上1",
             [(self.cash, Decimal("100"))],
@@ -468,7 +472,7 @@ class GeneralLedgerViewTest(TestCase):
         )
 
         # 2. 仕入 / 現金 40 (残高: 借方 60)
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 11),
             "仕入1",
             [(self.purchases, Decimal("40"))],
@@ -476,7 +480,7 @@ class GeneralLedgerViewTest(TestCase):
         )
 
         # 3. 現金 / 買掛金 50 (残高: 借方 110)
-        self.create_journal_entry(
+        create_journal_entry(
             date(2025, 10, 12),
             "買掛金支払い",
             [(self.cash, Decimal("50"))],
@@ -500,6 +504,44 @@ class GeneralLedgerViewTest(TestCase):
 
         # 3. 借方 50 (60 + 50 = 110)
         self.assertEqual(ledger_entries[2]["running_balance"], Decimal("110"))
+
+
+class TrialBalanceViewTest(TestCase):
+    """
+    試算表ビューのテスト
+    """
+
+    def setUp(self):
+        # テストに必要な初期データ（勘定科目）を作成
+        self.factory = RequestFactory()
+
+        self.cash = Account.objects.create(name="現金", type="Asset")
+        self.sales = Account.objects.create(name="売上", type="Revenue")
+        self.purchases = Account.objects.create(name="仕入", type="Expense")
+        self.accounts_payable = Account.objects.create(name="買掛金", type="Liability")
+
+        # テスト対象のビューにアクセスするためのURLを準備
+        self.url = "/ledger/trial_balance/"
+
+    # ここに試算表ビューのテストケースを追加していく
+
+
+class BalanceSheetViewTest(TestCase):
+    """
+    貸借対照表ビューのテスト
+    """
+
+    def setUp(self):
+        # テストに必要な初期データ（勘定科目）を作成
+        self.factory = RequestFactory()
+
+        self.cash = Account.objects.create(name="現金", type="Asset")
+        self.accounts_payable = Account.objects.create(name="買掛金", type="Liability")
+
+        # テスト対象のビューにアクセスするためのURLを準備
+        self.url = "/ledger/balance_sheet/"
+
+    # ここに貸借対照表ビューのテストケースを追加していく
 
 
 class CashBookCalculationTest(TestCase):
@@ -558,18 +600,22 @@ class CashBookCalculationTest(TestCase):
         )
 
         # 4月10日: 収入 (売上) 5000
-        je1 = JournalEntry.objects.create(date=date(2025, 4, 10), summary="売上入金")
-        Debit.objects.create(journal_entry=je1, account=self.cash_account, amount=5000)
-        Credit.objects.create(
-            journal_entry=je1, account=self.sales_account, amount=5000
+        je1 = create_journal_entry(
+            date(2025, 4, 10),
+            "売上入金",
+            [(self.cash_account, Decimal("5000"))],
+            [(self.sales_account, Decimal("5000"))],
+            None, # Company is None for this test
         )
 
         # 4月20日: 支出 (消耗品費) 2000
-        je2 = JournalEntry.objects.create(date=date(2025, 4, 20), summary="文房具購入")
-        Debit.objects.create(
-            journal_entry=je2, account=self.supplies_account, amount=2000
+        je2 = create_journal_entry(
+            date(2025, 4, 20),
+            "文房具購入",
+            [(self.supplies_account, Decimal("2000"))],
+            [(self.cash_account, Decimal("2000"))],
+            None, # Company is None for this test
         )
-        Credit.objects.create(journal_entry=je2, account=self.cash_account, amount=2000)
 
         result = calculate_monthly_balance("現金", 2025, 4)
         data = result["data"]
@@ -604,10 +650,12 @@ class CashBookCalculationTest(TestCase):
         )
 
         # 3月取引: 収入 +10000
-        je3 = JournalEntry.objects.create(date=date(2025, 3, 15), summary="3月入金")
-        Debit.objects.create(journal_entry=je3, account=self.cash_account, amount=10000)
-        Credit.objects.create(
-            journal_entry=je3, account=self.unknown_account, amount=10000
+        je3 = create_journal_entry(
+            date(2025, 3, 15),
+            "3月入金",
+            [(self.cash_account, Decimal("10000"))],
+            [(self.unknown_account, Decimal("10000"))],
+            None, # Company is None for this test
         )
 
         # --- 3月集計結果確認 ---
@@ -621,11 +669,13 @@ class CashBookCalculationTest(TestCase):
         # --- 4月集計結果確認 (3月の残高が前月繰越になっていること) ---
 
         # 4月取引: 支出 -5000
-        je4 = JournalEntry.objects.create(date=date(2025, 4, 10), summary="4月出金")
-        Debit.objects.create(
-            journal_entry=je4, account=self.supplies_account, amount=5000
+        je4 = create_journal_entry(
+            date(2025, 4, 10),
+            "4月出金",
+            [(self.supplies_account, Decimal("5000"))],
+            [(self.cash_account, Decimal("5000"))],
+            None, # Company is None for this test
         )
-        Credit.objects.create(journal_entry=je4, account=self.cash_account, amount=5000)
 
         result_april = calculate_monthly_balance("現金", 2025, 4)
         data_april = result_april["data"]
@@ -655,10 +705,12 @@ class CashBookCalculationTest(TestCase):
         )
 
         # 5月取引: 収入 (売上) 5000
-        je5 = JournalEntry.objects.create(date=date(2025, 5, 10), summary="売上入金")
-        Debit.objects.create(journal_entry=je5, account=self.cash_account, amount=5000)
-        Credit.objects.create(
-            journal_entry=je5, account=self.sales_account, amount=5000
+        je5 = create_journal_entry(
+            date(2025, 5, 10),
+            "売上入金",
+            [(self.cash_account, Decimal("5000"))],
+            [(self.sales_account, Decimal("5000"))],
+            None, # Company is None for this test
         )
 
         # 5月最終残高: 10000 + 5000 = 15000
@@ -697,45 +749,39 @@ class CashBookCalculationTest(TestCase):
         # 7月集計
 
         # 6月30日 (前月末): 収入 1000 -> 7月の集計に含めない (前月繰越に影響)
-        je_prev = JournalEntry.objects.create(date=date(2025, 6, 30), summary="6月取引")
-        Debit.objects.create(
-            journal_entry=je_prev, account=self.cash_account, amount=1000
-        )
-        Credit.objects.create(
-            journal_entry=je_prev, account=self.sales_account, amount=1000
+        je_prev = create_journal_entry(
+            date(2025, 6, 30),
+            "6月取引",
+            [(self.cash_account, Decimal("1000"))],
+            [(self.sales_account, Decimal("1000"))],
+            None, # Company is None for this test
         )
 
         # 7月1日 (月初): 支出 500 -> 7月の集計に含める
-        je_start = JournalEntry.objects.create(
-            date=date(2025, 7, 1), summary="7月1日取引"
-        )
-        Debit.objects.create(
-            journal_entry=je_start, account=self.supplies_account, amount=500
-        )
-        Credit.objects.create(
-            journal_entry=je_start, account=self.cash_account, amount=500
+        je_start = create_journal_entry(
+            date(2025, 7, 1),
+            "7月1日取引",
+            [(self.supplies_account, Decimal("500"))],
+            [(self.cash_account, Decimal("500"))],
+            None, # Company is None for this test
         )
 
         # 7月31日 (月末): 収入 2000 -> 7月の集計に含める
-        je_end = JournalEntry.objects.create(
-            date=date(2025, 7, 31), summary="7月31日取引"
-        )
-        Debit.objects.create(
-            journal_entry=je_end, account=self.cash_account, amount=2000
-        )
-        Credit.objects.create(
-            journal_entry=je_end, account=self.sales_account, amount=2000
+        je_end = create_journal_entry(
+            date(2025, 7, 31),
+            "7月31日取引",
+            [(self.cash_account, Decimal("2000"))],
+            [(self.sales_account, Decimal("2000"))],
+            None, # Company is None for this test
         )
 
         # 8月1日 (翌月): 支出 3000 -> 7月の集計に含めない
-        je_next = JournalEntry.objects.create(
-            date=date(2025, 8, 1), summary="8月1日取引"
-        )
-        Debit.objects.create(
-            journal_entry=je_next, account=self.supplies_account, amount=3000
-        )
-        Credit.objects.create(
-            journal_entry=je_next, account=self.cash_account, amount=3000
+        je_next = create_journal_entry(
+            date(2025, 8, 1),
+            "8月1日取引",
+            [(self.supplies_account, Decimal("3000"))],
+            [(self.cash_account, Decimal("3000"))],
+            None, # Company is None for this test
         )
 
         result_july = calculate_monthly_balance("現金", 2025, 7)
@@ -766,12 +812,12 @@ class CashBookCalculationTest(TestCase):
         )
 
         # 8月取引: 収入 (売上) 5000、summaryは空欄
-        je6 = JournalEntry.objects.create(
-            date=date(2025, 8, 15), summary=""
-        )  # summaryを空欄にする
-        Debit.objects.create(journal_entry=je6, account=self.cash_account, amount=5000)
-        Credit.objects.create(
-            journal_entry=je6, account=self.sales_account, amount=5000
+        je6 = create_journal_entry(
+            date(2025, 8, 15),
+            "",
+            [(self.cash_account, Decimal("5000"))],
+            [(self.sales_account, Decimal("5000"))],
+            None, # Company is None for this test
         )
 
         result = calculate_monthly_balance("現金", 2025, 8)
@@ -808,55 +854,30 @@ class PurchaseBookViewTest(TestCase):
         cls.item_y = Item.objects.create(name="Y商品")
         cls.item_z = Item.objects.create(name="Z商品")
 
-    def create_journal_entry(
-        self,
-        date_str,
-        company,
-        summary,
-        debit_account,
-        debit_amount,
-        credit_account,
-        credit_amount,
-    ):
-        """仕訳と明細を作成するヘルパー関数
-
-        Args:
-            date_str (str): 日付
-
-        """
-        je = JournalEntry.objects.create(
-            date=date.fromisoformat(date_str), company=company, summary=summary
-        )
-        Debit.objects.create(
-            journal_entry=je, account=debit_account, amount=debit_amount
-        )
-        Credit.objects.create(
-            journal_entry=je, account=credit_account, amount=credit_amount
-        )
-        return je
-
     # --- ユーザーが要求した基本的なケースのテスト ---
 
     def test_basic_purchase_and_total(self):
         """1ヶ月分の正常な仕入と総仕入高の集計テスト"""
 
         # 2025/4/10: 甲社から掛仕入 (仕入 3000 / 買掛金 3000)
-        je1 = self.create_journal_entry(
-            "2025-04-10",
-            self.co_a,
+        je1 = create_journal_entry(
+            date(2025, 4, 10),
             "掛仕入",
-            self.purchase,
-            3000,
-            self.accounts_payable,
-            3000,
+            [(self.purchase, 3000)],
+            [(self.accounts_payable, 3000)],
+            self.co_a,
         )
         PurchaseDetail.objects.create(
             journal_entry=je1, item=self.item_y, quantity=10, unit_price=300
         )
 
         # 2025/4/20: 乙社から現金仕入 (仕入 5000 / 現金 5000)
-        je2 = self.create_journal_entry(
-            "2025-04-20", self.co_b, "現金仕入", self.purchase, 5000, self.cash, 5000
+        je2 = create_journal_entry(
+            date(2025, 4, 20),
+            "現金仕入",
+            [(self.purchase, 5000)],
+            [(self.cash, 5000)],
+            self.co_b,
         )
         PurchaseDetail.objects.create(
             journal_entry=je2, item=self.item_z, quantity=5, unit_price=1000
@@ -888,29 +909,24 @@ class PurchaseBookViewTest(TestCase):
     def test_purchase_returns(self):
         """仕入戻し（貸方 仕入）が正しくマイナスとして処理され、純仕入高に反映されること"""
 
-        # 2025/5/05: 通常仕入 (仕入 10000 / 買掛金 10000)
-        je3 = self.create_journal_entry(
-            "2025-05-05",
-            self.co_a,
+        je3 = create_journal_entry(
+            date(2025, 5, 5),
             "掛仕入",
-            self.purchase,
-            10000,
-            self.accounts_payable,
-            10000,
+            [(self.purchase, 10000)],
+            [(self.accounts_payable, 10000)],
+            self.co_a,
         )
         PurchaseDetail.objects.create(
             journal_entry=je3, item=self.item_y, quantity=20, unit_price=500
         )
 
         # 2025/5/15: 仕入戻し (買掛金 2000 / 仕入 2000) -> 貸方に仕入が来る
-        je4 = self.create_journal_entry(
-            "2025-05-15",
-            self.co_a,
+        je4 = create_journal_entry(
+            date(2025, 5, 15),
             "品違いによる返品",
-            self.accounts_payable,
-            2000,
-            self.purchase,
-            2000,
+            [(self.accounts_payable, 2000)],
+            [(self.purchase, 2000)],
+            self.co_a,
         )
         PurchaseDetail.objects.create(
             journal_entry=je4, item=self.item_y, quantity=4, unit_price=500
@@ -948,14 +964,12 @@ class PurchaseBookViewTest(TestCase):
         """仕訳の金額と明細の合計金額が一致しない場合にエラーが記録されること"""
 
         # 2025/6/01: 不一致仕入 (仕入 10000 / 買掛金 10000)
-        je5 = self.create_journal_entry(
-            "2025-06-01",
-            self.co_b,
+        je5 = create_journal_entry(
+            date(2025, 6, 1),
             "金額不一致テスト",
-            self.purchase,
-            10000,
-            self.accounts_payable,
-            10000,
+            [(self.purchase, 10000)],
+            [(self.accounts_payable, 10000)],
+            self.co_b,
         )
         # 明細の合計は 10個 * 500 = 5000 (仕訳金額10000と不一致)
         PurchaseDetail.objects.create(
