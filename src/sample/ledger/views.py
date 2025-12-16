@@ -238,7 +238,7 @@ class GeneralLedgerView(TemplateView):
             return set(debit.account for debit in je.prefetched_debits)
         else:
             return set(credit.account for credit in je.prefetched_credits)
-    
+
     def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
         """
         相手勘定科目の名前を決定するユーティリティメソッド。
@@ -342,6 +342,13 @@ class GeneralLedgerView(TemplateView):
         return context
 
 
+@dataclass
+class TrialBalanceEntry:
+    name: str
+    type: str
+    total: Decimal
+
+
 class TrialBalanceView(TemplateView):
     """
     試算表ビュー
@@ -349,6 +356,7 @@ class TrialBalanceView(TemplateView):
     URL: /ledger/trial_balance_by_year/
     """
     template_name = "ledger/trial_balance_partial.html"
+
 
     def _calculate_each_entry_total(self, entry: Entry, account: Account, start_date: date, end_date: date):
         """
@@ -404,18 +412,18 @@ class TrialBalanceView(TemplateView):
         # 全勘定科目を取得
         accounts = Account.objects.all().order_by("type", "name")
 
-        trial_balance_data = []
+        trial_balance_data: list[TrialBalanceEntry] = []
 
         for account in accounts:
             total = self._calculate_account_total(account, start_date, end_date)
 
-            trial_balance_data.append({
-                "account": account,
-                "type": account.type,
-                "total": total,
-            })
+            trial_balance_data_entry = TrialBalanceEntry(
+                name=account.name,
+                type=account.type,
+                total=total,
+            )
 
-        print(trial_balance_data)
+            trial_balance_data.append(trial_balance_data_entry)
 
         context["year"] = year
         context["trial_balance_data"] = trial_balance_data
