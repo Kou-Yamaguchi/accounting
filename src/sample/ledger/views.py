@@ -432,6 +432,14 @@ class BalanceSheetView(TemplateView):
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
 
+
+        # HACK: 貸借差額を繰越利益剰余金or繰越欠損金を直接計算している
+        # 本来は損益振替・資本振替をした決算整理仕訳を経由して反映させるべき
+        if total_debits > total_credits:
+            context["rebf"] = total_debits - total_credits
+        else:
+            context["debfb"] = total_credits - total_debits
+
         # htmlのtableで貸借対照表を表示するための転置処理
         debit_columns = context['asset_accounts']
         credit_columns = context['liability_accounts'] + context['equity_accounts']
@@ -479,6 +487,9 @@ class ProfitAndLossView(TemplateView):
 
         context["total_revenue"] = total_revenue
         context["total_expense"] = total_expense
+
+        # HACK: 当期純利益・純損失を直接計算している
+        # 本来は損益振替仕訳を経由して反映させるべき
         if total_revenue >= total_expense:
             context["net_income"] = total_revenue - total_expense
         else:
