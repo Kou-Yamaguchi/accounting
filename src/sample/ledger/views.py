@@ -432,6 +432,14 @@ class BalanceSheetView(TemplateView):
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
 
+
+        # HACK: 貸借差額を繰越利益剰余金or繰越欠損金を直接計算している
+        # 本来は損益振替・資本振替をした決算整理仕訳を経由して反映させるべき
+        if total_debits > total_credits:
+            context["rebf"] = total_debits - total_credits
+        else:
+            context["debfb"] = total_credits - total_debits
+
         # htmlのtableで貸借対照表を表示するための転置処理
         debit_columns = context['asset_accounts']
         credit_columns = context['liability_accounts'] + context['equity_accounts']
@@ -439,6 +447,66 @@ class BalanceSheetView(TemplateView):
         paired_columns = [(debit, credit) for debit, credit in zip_longest(debit_columns, credit_columns, fillvalue=None)]
 
         context['paired_columns'] = paired_columns
+
+        return context
+
+
+class ProfitAndLossView(TemplateView):
+    """損益計算書ビュー"""
+    template_name = "ledger/profit_and_loss_table.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # 損益計算書のデータ取得ロジックをここに実装
+        year = int(self.request.GET.get("year", datetime.now().year))
+        context["year"] = year
+        start_date, end_date = get_fiscal_range(year)
+
+        total_revenue = Decimal("0.00")
+        total_expense = Decimal("0.00")
+
+        for account_type in ['revenue', 'expense']:
+            accounts = Account.objects.filter(type=account_type).order_by("name")
+            account_data = []
+
+            for account in accounts:
+                total = calculate_account_total(account, start_date, end_date)
+
+                account_data.append({
+                    "account": account,
+                    "type": account_type,
+                    "balance": total,
+                })
+
+            context[f"{account_type}_accounts"] = account_data
+
+            if account_type == 'revenue':
+                total_revenue += sum(item["balance"] for item in account_data)
+            else:
+                total_expense += sum(item["balance"] for item in account_data)
+
+        context["total_revenue"] = total_revenue
+        context["total_expense"] = total_expense
+
+        # HACK: 当期純利益・純損失を直接計算している
+        # 本来は損益振替仕訳を経由して反映させるべき
+        if total_revenue >= total_expense:
+            context["net_income"] = total_revenue - total_expense
+        else:
+            context["net_loss"] = total_expense - total_revenue
+
+        # htmlのtableで貸借対照表を表示するための転置処理
+        debit_columns = context["expense_accounts"]
+        credit_columns = context["revenue_accounts"]
+
+        paired_columns = [
+            (debit, credit)
+            for debit, credit in zip_longest(
+                debit_columns, credit_columns, fillvalue=None
+            )
+        ]
+
+        context["paired_columns"] = paired_columns
 
         return context
 

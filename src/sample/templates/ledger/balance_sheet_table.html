@@ -17,10 +17,16 @@
     </tr>
     {% endfor %}
     <tr>
+      <td>{% if debfb %}繰越欠損金{% endif %}</td>
+      <td>{% if debfb %}{{ debfb }}{% endif %}</td>
+      <td>{% if rebf %}繰越利益剰余金{% endif %}</td>
+      <td>{% if rebf %}{{ rebf }}{% endif %}</td>
+    </tr>
+    <tr>
       <td><strong>合計</strong></td>
-      <td><strong>{{ total_debits }}</strong></td>
+      <td><strong>{% if debfb %}{{ total_debits|add:debfb }}{% else %}{{ total_debits }}{% endif %}</strong></td>
       <td><strong>合計</strong></td>
-      <td><strong>{{ total_credits }}</strong></td>
+      <td><strong>{% if rebf %}{{ total_credits|add:rebf }}{% else %}{{ total_credits }}{% endif %}</strong></td>
     </tr>
   </tbody>
 </table>
