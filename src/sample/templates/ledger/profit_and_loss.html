@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block main %}
+
+<head>
+  <meta charset="utf-8">
+  <title>損益計算書</title>
+  <script src="https://unpkg.com/htmx.org@2.0.0"
+    integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
+    crossorigin="anonymous"></script>
+</head>
+
+<h2>損益計算書</h2>
+<label for="year">年：</label>
+<input type="number" name="year" value="2024" hx-get="{% url 'profit_and_loss_by_year' %}" hx-trigger="change"
+  hx-target="#profit-and-loss-table" hx-include="this" />
+<table id="profit-and-loss-table" class="table table-striped">
+  <thead>
+    <tr>
+      <th>費用</th>
+      <th>金額</th>
+      <th>収益</th>
+      <th>金額</th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,32 @@
+<table id="profit-and-loss-table" class="table table-striped">
+  <thead>
+    <tr>
+      <th>費用</th>
+      <th>金額</th>
+      <th>収益</th>
+      <th>金額</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for debit, credit in paired_columns %}
+    <tr>
+      <td>{% if debit %}{{ debit.account }}{% endif %}</td>
+      <td>{% if debit %}{{ debit.balance }}{% endif %}</td>
+      <td>{% if credit %}{{ credit.account }}{% endif %}</td>
+      <td>{% if credit %}{{ credit.balance }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <td>{% if net_income %}当期純利益{% endif %}</td>
+      <td>{% if net_income %}{{ net_income }}{% endif %}</td>
+      <td>{% if net_loss %}当期純損失{% endif %}</td>
+      <td>{% if net_loss %}{{ net_loss }}{% endif %}</td>
+    </tr>
+    <tr>
+      <td><strong>合計</strong></td>
+      <td><strong>{% if net_income %}{{ total_expense|add:net_income }}{% else %}{{ total_expense }}{% endif %}</strong></td>
+      <td><strong>合計</strong></td>
+      <td><strong>{% if net_loss %}{{ total_revenue|add:net_loss }}{% else %}{{ total_revenue }}{% endif %}</strong></td>
+    </tr>
+  </tbody>
+</table>
