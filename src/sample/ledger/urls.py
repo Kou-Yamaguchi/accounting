@@ -33,6 +33,7 @@ urlpatterns = [
     path("select/", LedgerSelectView.as_view(), name="ledger_select"),
     path("trial_balance/", TemplateView.as_view(template_name="ledger/trial_balance.html"), name="trial_balance"),
     path("trial_balance_by_year/", TrialBalanceView.as_view(), name="trial_balance_by_year"),
+    path("export_trial_balance/", TrialBalanceView.as_view(export=True), name="export_trial_balance"),
     path("general_ledger/", TemplateView.as_view(template_name="ledger/general_ledger.html"), name="general_ledger"),
     path("balance_sheet/", TemplateView.as_view(template_name="ledger/balance_sheet.html"), name="balance_sheet"),
     path("balance_sheet_by_year/", BalanceSheetView.as_view(), name="balance_sheet_by_year"),

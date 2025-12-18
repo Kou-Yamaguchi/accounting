@@ -16,6 +16,9 @@
 <input type="number" name="year" value="2025" hx-get="{% url 'trial_balance_by_year' %}" hx-trigger="load, change"
   hx-target="#trial-balance" hx-include="this" 
 />
+<button hx-get="{% url 'export_trial_balance' %}" hx-include="input[name='year']" hx-target="body" hx-swap="none">
+  エクスポート
+</button>
 
 <table id="trial-balance" class="table table-striped">
   <thead>
