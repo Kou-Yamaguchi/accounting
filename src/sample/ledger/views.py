@@ -7,6 +7,7 @@ from itertools import zip_longest
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
 from django.views.generic import (
+    View,
     ListView,
     CreateView,
     UpdateView,
@@ -396,6 +397,13 @@ class TrialBalanceView(TemplateView):
         context["trial_balance_data"] = trial_balance_data
 
         return context
+    
+
+class ExportTrialBalanceView(View):
+    """試算表エクスポートビュー"""
+    def get(self, request, *args, **kwargs):
+        # TODO: エクスポート処理の実装
+        pass
 
 
 class BalanceSheetView(TemplateView):
@@ -449,6 +457,13 @@ class BalanceSheetView(TemplateView):
         context['paired_columns'] = paired_columns
 
         return context
+
+
+class ExportBalanceSheetView(View):
+    """貸借対照表エクスポートビュー"""
+    def get(self, request, *args, **kwargs):
+        # TODO: エクスポート処理の実装
+        pass
 
 
 class ProfitAndLossView(TemplateView):
@@ -509,6 +524,13 @@ class ProfitAndLossView(TemplateView):
         context["paired_columns"] = paired_columns
 
         return context
+
+
+class ExportProfitAndLossView(View):
+    """損益計算書エクスポートビュー"""
+    def get(self, request, *args, **kwargs):
+        # TODO: エクスポート処理の実装
+        pass
 
 
 class AbstractCashBookView(TemplateView):
