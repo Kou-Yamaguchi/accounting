@@ -13,7 +13,7 @@
 
 <h2>残高試算表</h2>
 <label for="year">年：</label>
-<input type="number" name="year" value="2024" hx-get="{% url 'trial_balance_by_year' %}" hx-trigger="change"
+<input type="number" name="year" value="2025" hx-get="{% url 'trial_balance_by_year' %}" hx-trigger="load, change"
   hx-target="#trial-balance" hx-include="this" 
 />
 
