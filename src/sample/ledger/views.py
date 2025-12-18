@@ -6,6 +6,7 @@ from itertools import zip_longest
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
+from django.http import HttpResponse
 from django.views.generic import (
     View,
     ListView,
@@ -17,6 +18,7 @@ from django.views.generic import (
 from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ImproperlyConfigured
+from openpyxl import Workbook
 
 from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
@@ -364,6 +366,7 @@ class TrialBalanceView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        # HACK: excel出力時と同じロジックなので共通化したい
         year = int(self.request.GET.get("year"))
 
         start_date, end_date = get_fiscal_range(year)
@@ -403,7 +406,35 @@ class ExportTrialBalanceView(View):
     """試算表エクスポートビュー"""
     def get(self, request, *args, **kwargs):
         # TODO: エクスポート処理の実装
-        pass
+        wb = Workbook()
+        ws = wb.active
+
+        ws.append(["借方", "勘定科目", "貸方"])
+
+        year = int(self.request.GET.get("year"))
+        start_date, end_date = get_fiscal_range(year)
+
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
+
+        accounts = Account.objects.all().order_by("type", "name")
+
+        for account in accounts:
+            total = calculate_account_total(account, start_date, end_date)
+
+            if account.type in ['asset', 'expense']:
+                ws.append([total, account.name, ""])
+                total_debits += total
+            else:
+                ws.append(["", account.name, total])
+                total_credits += total
+
+        ws.append([total_debits, "合計", total_credits])
+
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename=trial_balance_{year}.xlsx'
+        wb.save(response)
+        return response
 
 
 class BalanceSheetView(TemplateView):
