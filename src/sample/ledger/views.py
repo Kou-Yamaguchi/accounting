@@ -466,7 +466,7 @@ class BalanceSheetView(TemplateView):
 
             context[f"{account_type}_accounts"] = account_data
 
-            total_debits += sum(item["balance"] for item in account_data if item["type"] is "asset")
+            total_debits += sum(item["balance"] for item in account_data if item["type"] == "asset")
             total_credits += sum(item["balance"] for item in account_data if item["type"] in ["liability", "equity"])
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
