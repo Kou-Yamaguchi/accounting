@@ -4,3 +4,5 @@ django-environ == 0.8.1
 python-dateutil == 2.8.2
 # enum
 django-bootstrap5
+openpyxl
+pandas

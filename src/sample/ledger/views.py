@@ -6,7 +6,9 @@ from itertools import zip_longest
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
+from django.http import HttpResponse
 from django.views.generic import (
+    View,
     ListView,
     CreateView,
     UpdateView,
@@ -16,6 +18,7 @@ from django.views.generic import (
 from django.urls import reverse_lazy
 from django.db import transaction
 from django.core.exceptions import ImproperlyConfigured
+from openpyxl import Workbook
 
 from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
@@ -363,6 +366,7 @@ class TrialBalanceView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        # HACK: excel出力時と同じロジックなので共通化したい
         year = int(self.request.GET.get("year"))
 
         start_date, end_date = get_fiscal_range(year)
@@ -396,6 +400,41 @@ class TrialBalanceView(TemplateView):
         context["trial_balance_data"] = trial_balance_data
 
         return context
+    
+
+class ExportTrialBalanceView(View):
+    """試算表エクスポートビュー"""
+    def get(self, request, *args, **kwargs):
+        # TODO: エクスポート処理の実装
+        wb = Workbook()
+        ws = wb.active
+
+        ws.append(["借方", "勘定科目", "貸方"])
+
+        year = int(self.request.GET.get("year"))
+        start_date, end_date = get_fiscal_range(year)
+
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
+
+        accounts = Account.objects.all().order_by("type", "name")
+
+        for account in accounts:
+            total = calculate_account_total(account, start_date, end_date)
+
+            if account.type in ['asset', 'expense']:
+                ws.append([total, account.name, ""])
+                total_debits += total
+            else:
+                ws.append(["", account.name, total])
+                total_credits += total
+
+        ws.append([total_debits, "合計", total_credits])
+
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename=trial_balance_{year}.xlsx'
+        wb.save(response)
+        return response
 
 
 class BalanceSheetView(TemplateView):
@@ -427,7 +466,7 @@ class BalanceSheetView(TemplateView):
 
             context[f"{account_type}_accounts"] = account_data
 
-            total_debits += sum(item["balance"] for item in account_data if item["type"] is "asset")
+            total_debits += sum(item["balance"] for item in account_data if item["type"] == "asset")
             total_credits += sum(item["balance"] for item in account_data if item["type"] in ["liability", "equity"])
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
@@ -449,6 +488,13 @@ class BalanceSheetView(TemplateView):
         context['paired_columns'] = paired_columns
 
         return context
+
+
+class ExportBalanceSheetView(View):
+    """貸借対照表エクスポートビュー"""
+    def get(self, request, *args, **kwargs):
+        # TODO: エクスポート処理の実装
+        pass
 
 
 class ProfitAndLossView(TemplateView):
@@ -509,6 +555,13 @@ class ProfitAndLossView(TemplateView):
         context["paired_columns"] = paired_columns
 
         return context
+
+
+class ExportProfitAndLossView(View):
+    """損益計算書エクスポートビュー"""
+    def get(self, request, *args, **kwargs):
+        # TODO: エクスポート処理の実装
+        pass
 
 
 class AbstractCashBookView(TemplateView):
