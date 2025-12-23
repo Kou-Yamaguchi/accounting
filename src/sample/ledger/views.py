@@ -26,6 +26,9 @@ from ledger.services import (
     calculate_monthly_balance,
     get_fiscal_range,
     calculate_account_total,
+    calc_monthly_sales,
+    calc_monthly_expense,
+    calc_monthly_profit,
 )
 from enums.error_messages import ErrorMessages
 
@@ -836,4 +839,8 @@ class DashboardView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # ダッシュボード用のデータ取得ロジックをここに実装
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
+        context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
         return context
