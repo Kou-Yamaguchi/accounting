@@ -827,3 +827,13 @@ class PurchaseBookView(TemplateView):
         context["purchase_book"] = purchase_book
 
         return context
+
+
+class DashboardView(TemplateView):
+    """ダッシュボードビュー"""
+    template_name = "ledger/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # ダッシュボード用のデータ取得ロジックをここに実装
+        return context
