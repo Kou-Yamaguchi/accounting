@@ -200,7 +200,7 @@ class LedgerSelectView(TemplateView):
 class GeneralLedgerView(TemplateView):
     """
     特定の勘定科目の総勘定元帳を取得・表示するビュー。
-    URL: /ledger/<str:account_name>/
+    URL: /ledger/general_ledger/<str:account_name>/
     """
 
     template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
