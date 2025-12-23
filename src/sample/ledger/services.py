@@ -1,5 +1,6 @@
 from decimal import Decimal
 from datetime import date
+from typing import Literal
 
 from dateutil.relativedelta import relativedelta
 from django.db.models import Q
@@ -280,3 +281,82 @@ def calculate_account_total(
         total_amount = credit_total - debit_total
 
     return total_amount
+
+
+def get_total_by_account_type(
+    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], start_date: date, end_date: date
+) -> Decimal:
+    """
+    指定された勘定科目タイプの合計金額を計算します。
+
+    Args:
+        account_type (Literal["asset", "liability", "equity", "revenue", "expense"]): 勘定科目タイプ
+        start_date (date): 期間開始日
+        end_date (date): 期間終了日
+
+    Returns:
+        Decimal: 指定された勘定科目タイプの合計金額
+    """
+    accounts = Account.objects.filter(type=account_type)
+
+    total_amount = sum(
+        calculate_account_total(account, start_date, end_date)
+        for account in accounts
+    )
+
+    return total_amount
+
+
+def calc_monthly_sales(year: int, month: int) -> Decimal:
+    """
+    指定された年月の月次収益を計算します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        Decimal: 月次収益
+    """
+    start_date, end_date = get_month_range(year, month)
+
+    total_sales = get_total_by_account_type("revenue", start_date, end_date)
+
+    return total_sales
+
+
+def calc_monthly_expense(year: int, month: int) -> Decimal:
+    """
+    指定された年月の月次費用を計算します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        Decimal: 月次費用
+    """
+    start_date, end_date = get_month_range(year, month)
+
+    total_expense = get_total_by_account_type("expense", start_date, end_date)
+
+    return total_expense
+
+
+def calc_monthly_profit(year: int, month: int) -> Decimal:
+    """
+    指定された年月の月次利益を計算します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        Decimal: 月次利益
+    """
+    total_sales = calc_monthly_sales(year, month)
+    total_expense = calc_monthly_expense(year, month)
+
+    monthly_profit = total_sales - total_expense
+
+    return monthly_profit
