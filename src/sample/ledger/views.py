@@ -842,5 +842,6 @@ class DashboardView(TemplateView):
         current_year = datetime.now().year
         current_month = datetime.now().month
         context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
+        # TODO: 損失の場合，絶対値+赤文字+損失で表示する
         context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
         return context
