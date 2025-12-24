@@ -27,8 +27,9 @@ from ledger.services import (
     get_fiscal_range,
     calculate_account_total,
     calc_monthly_sales,
-    calc_monthly_expense,
+    calc_recent_half_year_sales,
     calc_monthly_profit,
+    calc_recent_half_year_profits,
 )
 from enums.error_messages import ErrorMessages
 
@@ -844,4 +845,23 @@ class DashboardView(TemplateView):
         context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
         # TODO: 損失の場合，絶対値+赤文字+損失で表示する
         context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
+        context["recent_half_year_sales"] = calc_recent_half_year_sales()
+        context["recent_half_year_profits"] = calc_recent_half_year_profits()
+        # TODO: ラベル取得ロジックの実装
+        recent_half_year_labels = [f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}" for i in range(5, -1, -1)]
+        context["recent_half_year_labels"] = recent_half_year_labels
+        return context
+    
+
+class SalesCostChartView(TemplateView):
+    """売上高・売上原価チャートビュー"""
+    template_name = "ledger/sales_cost_chart.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # 売上高・売上原価チャート用のデータ取得ロジックをここに実装
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
+        context["recent_half_year_sales"] = calc_recent_half_year_sales()
         return context

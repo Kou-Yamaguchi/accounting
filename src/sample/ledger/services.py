@@ -325,6 +325,28 @@ def calc_monthly_sales(year: int, month: int) -> Decimal:
     return total_sales
 
 
+def calc_recent_half_year_sales() -> list[Decimal]:
+    """
+    直近6ヶ月の月次収益をリストで取得します。
+
+    Returns:
+        list[Decimal]: 直近6ヶ月の月次収益リスト
+    """
+    today = date.today()
+    sales_list = []
+
+    for i in range(6):
+        target_date = today - relativedelta(months=i)
+        year = target_date.year
+        month = target_date.month
+        monthly_sales = calc_monthly_sales(year, month)
+        sales_list.append(monthly_sales)
+
+    sales_list.reverse()  # 古い順に並び替え
+
+    return sales_list
+
+
 def calc_monthly_expense(year: int, month: int) -> Decimal:
     """
     指定された年月の月次費用を計算します。
@@ -341,6 +363,28 @@ def calc_monthly_expense(year: int, month: int) -> Decimal:
     total_expense = get_total_by_account_type("expense", start_date, end_date)
 
     return total_expense
+
+
+def calc_recent_half_year_expenses() -> list[Decimal]:
+    """
+    直近6ヶ月の月次費用をリストで取得します。
+
+    Returns:
+        list[Decimal]: 直近6ヶ月の月次費用リスト
+    """
+    today = date.today()
+    expense_list = []
+
+    for i in range(6):
+        target_date = today - relativedelta(months=i)
+        year = target_date.year
+        month = target_date.month
+        monthly_expense = calc_monthly_expense(year, month)
+        expense_list.append(monthly_expense)
+
+    expense_list.reverse()  # 古い順に並び替え
+
+    return expense_list
 
 
 def calc_monthly_profit(year: int, month: int) -> Decimal:
@@ -360,3 +404,21 @@ def calc_monthly_profit(year: int, month: int) -> Decimal:
     monthly_profit = total_sales - total_expense
 
     return monthly_profit
+
+
+def calc_recent_half_year_profits() -> list[Decimal]:
+    """
+    直近6ヶ月の月次利益をリストで取得します。
+
+    Returns:
+        list[Decimal]: 直近6ヶ月の月次利益リスト
+    """
+    sales_list = calc_recent_half_year_sales()
+    expense_list = calc_recent_half_year_expenses()
+    profit_list = []
+
+    for sales, expense in zip(sales_list, expense_list):
+        profit = sales - expense
+        profit_list.append(profit)
+
+    return profit_list

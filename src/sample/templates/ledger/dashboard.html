@@ -95,7 +95,13 @@
 
     <!-- 売上推移 + 費用内訳 -->
     <div class="grid-2">
-      <div class="card">
+      <div 
+        class="card"
+        hx-get="{% url 'dashboard_sales_cost_chart' %}"
+        hx-trigger="load"
+        hx-target="#salesChart"
+        hx-on="htmx:afterRequest: renderSalesChart(event.detail.xhr.response)"
+      >
         <h2>月次売上・利益推移</h2>
         <canvas id="salesChart"></canvas>
       </div>
@@ -121,16 +127,44 @@
 
   <script>
     // 売上・利益推移
-    new Chart(document.getElementById('salesChart'), {
-      type: 'bar',
-      data: {
-        labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
-        datasets: [
-          { label: '売上', data: [900, 1000, 1100, 1200, 1250, 1300] },
-          { label: '利益', data: [600, 650, 700, 850, 870, 900], type: 'line' }
-        ]
+    let salesChart;
+    function renderSalesChart(data) {
+      const parsedData = JSON.parse(data);
+      const ctx = document.getElementById('salesChart').getContext('2d');
+      if (salesChart) {
+        salesChart.destroy();
       }
-    });
+      salesChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: parsedData.labels,
+          datasets: [
+            {
+              label: '売上',
+              data: parsedData.sales,
+              backgroundColor: 'rgba(54, 162, 235, 0.6)'
+            },
+            {
+              label: '利益',
+              data: parsedData.profits,
+              type: 'line',
+              borderColor: 'rgba(255, 99, 132, 1)',
+              fill: false
+            }
+          ]
+        }
+      });
+    }
+    // new Chart(document.getElementById('salesChart'), {
+    //   type: 'bar',
+    //   data: {
+    //     labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+    //     datasets: [
+    //       { label: '売上', data: [900, 1000, 1100, 1200, 1250, 1300] },
+    //       { label: '利益', data: [600, 650, 700, 850, 870, 900], type: 'line' }
+    //     ]
+    //   }
+    // });
 
     // 費用内訳
     new Chart(document.getElementById('costChart'), {
