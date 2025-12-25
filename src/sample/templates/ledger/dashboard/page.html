@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block main %}
+
+<head>
+  <title>Freelance Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 16px 24px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .container {
+      padding: 24px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .kpi-title {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .kpi-value {
+      font-size: 24px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .card h2 {
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<div class="container">
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-title">月次売上</div>
+      <div class="kpi-value">¥{{ monthly_sales }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">月次利益</div>
+      <div class="kpi-value">¥{{ monthly_profit }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">税引前利益</div>
+      <div class="kpi-value">¥780,000</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">現金残高</div>
+      <div class="kpi-value">¥3,200,000</div>
+    </div>
+  </div>
+
+  <!-- 売上推移 + 費用内訳 -->
+
+  <select 
+    name="period" 
+    hx-get="{% url 'dashboard' %}" 
+    hx-trigger="change"
+    hx-target="#sales-chart" 
+    hx-swap="innerHTML"
+  >
+    <option value="3">直近3ヶ月</option>
+    <option value="6">直近6ヶ月</option>
+    <option value="12">直近1年</option>
+    <option value="24">直近2年</option>
+  </select>
+
+  <div class="grid-2">
+    <div class="card" id="sales-chart">
+      <h2>月次売上・利益推移</h2>
+      {% include "ledger/dashboard/sales_chart.html" %}
+    </div>
+    <div class="card">
+      <h2>費用内訳</h2>
+      <canvas id="costChart"></canvas>
+    </div>
+  </div>
+
+  <!-- トレンド + 集中度 -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>売上トレンド分析</h2>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>取引先集中度</h2>
+      <canvas id="paretoChart"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // 費用内訳
+  new Chart(document.getElementById('costChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['通信費', 'クラウド', '書籍', '交通費'],
+      datasets: [{ data: [120, 200, 60, 40] }]
+    }
+  });
+
+  // トレンド分析
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+      datasets: [
+        { label: '実績', data: [900, 1000, 1100, 1200, 1250, 1300] },
+        { label: 'トレンド', data: [920, 980, 1050, 1150, 1230, 1280] }
+      ]
+    }
+  });
+
+  // パレート
+  new Chart(document.getElementById('paretoChart'), {
+    type: 'bar',
+    data: {
+      labels: ['A社', 'B社', 'C社', 'D社'],
+      datasets: [
+        { label: '売上割合', data: [65, 20, 10, 5] }
+      ]
+    }
+  });
+</script>
+{% endblock %}

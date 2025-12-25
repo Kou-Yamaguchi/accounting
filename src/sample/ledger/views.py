@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from calendar import monthrange
 from dataclasses import dataclass
 from itertools import zip_longest
+import json
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
@@ -23,6 +24,8 @@ from openpyxl import Workbook
 from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import (
+    decimal_to_int,
+    list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
     calculate_account_total,
@@ -404,7 +407,7 @@ class TrialBalanceView(TemplateView):
         context["trial_balance_data"] = trial_balance_data
 
         return context
-    
+
 
 class ExportTrialBalanceView(View):
     """試算表エクスポートビュー"""
@@ -835,7 +838,7 @@ class PurchaseBookView(TemplateView):
 
 class DashboardView(TemplateView):
     """ダッシュボードビュー"""
-    template_name = "ledger/dashboard.html"
+    template_name = "ledger/dashboard/page.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -845,23 +848,26 @@ class DashboardView(TemplateView):
         context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
         # TODO: 損失の場合，絶対値+赤文字+損失で表示する
         context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
-        context["recent_half_year_sales"] = calc_recent_half_year_sales()
-        context["recent_half_year_profits"] = calc_recent_half_year_profits()
-        # TODO: ラベル取得ロジックの実装
-        recent_half_year_labels = [f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}" for i in range(5, -1, -1)]
-        context["recent_half_year_labels"] = recent_half_year_labels
-        return context
-    
 
-class SalesCostChartView(TemplateView):
-    """売上高・売上原価チャートビュー"""
-    template_name = "ledger/sales_cost_chart.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # 売上高・売上原価チャート用のデータ取得ロジックをここに実装
-        current_year = datetime.now().year
-        current_month = datetime.now().month
-        context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
-        context["recent_half_year_sales"] = calc_recent_half_year_sales()
+        labels, sales_data, profit_data = self._get_sales_chart_data()
+        context["sales_chart_labels"] = json.dumps(labels)
+        context["sales_chart_sales_data"] = json.dumps(sales_data)
+        context["sales_chart_profit_data"] = json.dumps(profit_data)
         return context
+
+    def get(self, request, *args, **kwargs):
+        """AJAXリクエストに対してJSONデータを返す処理を追加"""
+        if request.headers.get("HX-Request"):
+            print("AJAX request detected")
+            context = self.get_context_data(**kwargs)
+            return render(request, "ledger/dashboard/sales_chart.html", context)
+        return super().get(request, *args, **kwargs)
+
+    def _get_sales_chart_data(self) -> tuple[list[str], list[int], list[int]]:
+        labels = [
+            f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}"
+            for i in range(5, -1, -1)
+        ]
+        sales_data = list_decimal_to_int(calc_recent_half_year_sales())
+        profit_data = list_decimal_to_int(calc_recent_half_year_profits())
+        return labels, sales_data, profit_data

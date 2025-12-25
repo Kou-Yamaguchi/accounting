@@ -9,6 +9,34 @@ from django.db.models import Sum
 from .models import JournalEntry, InitialBalance, Account, Entry, Debit, Credit, PurchaseDetail, Item, Company
 
 
+def decimal_to_int(value: Decimal) -> int:
+    """
+    Decimal型の金額をint型に変換します。
+    小数点以下は切り捨てられます。
+
+    Args:
+        value (Decimal): 変換するDecimal値
+
+    Returns:
+        int: 変換後のint値
+    """
+    return int(value.quantize(Decimal("1.")))
+
+
+def list_decimal_to_int(values: list[Decimal]) -> list[int]:
+    """
+    Decimal型の金額リストをint型のリストに変換します。
+    小数点以下は切り捨てられます。
+
+    Args:
+        values (list[Decimal]): 変換するDecimal値のリスト
+
+    Returns:
+        list[int]: 変換後のint値のリスト
+    """
+    return [decimal_to_int(value) for value in values]
+
+
 def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple[date, date]:
     """
     指定された年の会計期間の開始日と終了日を取得します。

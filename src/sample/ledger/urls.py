@@ -20,7 +20,7 @@ from ledger.views import (
     CurrentAccountCashBookView,
     PettyCashBookView,
     PurchaseBookView,
-    DashboardView
+    DashboardView,
 )
 
 urlpatterns = [
