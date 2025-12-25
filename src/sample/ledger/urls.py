@@ -19,7 +19,8 @@ from ledger.views import (
     CashBookView,
     CurrentAccountCashBookView,
     PettyCashBookView,
-    PurchaseBookView
+    PurchaseBookView,
+    DashboardView,
 )
 
 urlpatterns = [
@@ -40,8 +41,7 @@ urlpatterns = [
     path("balance_sheet_by_year/", BalanceSheetView.as_view(), name="balance_sheet_by_year"),
     path("profit_and_loss/", TemplateView.as_view(template_name="ledger/profit_and_loss.html"), name="profit_and_loss"),
     path("profit_and_loss_by_year/", ProfitAndLossView.as_view(), name="profit_and_loss_by_year"),
-    # path("general_ledger/<str:account_name>/<str:date_from>/<str:date_to>/", GeneralLedgerView.as_view(), name="general_ledger_filtered"),
-    path("<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger_by_account"),
+    path("general_ledger/<str:account_name>/", GeneralLedgerView.as_view(), name="general_ledger_by_account"),
     path("cash_book/cash/<int:year>/<int:month>/", CashBookView.as_view(), name="cash_book"),
     path("cash_book/cash/", CashBookView.as_view(), name="cash_book_current"),
     path("cash_book/current/<int:year>/<int:month>/", CurrentAccountCashBookView.as_view(), name="current_account_cash_book"),
@@ -50,4 +50,5 @@ urlpatterns = [
     path("cash_book/petty/", PettyCashBookView.as_view(), name="petty_cash_book_current"),
     path("purchase_book/<int:year>/<int:month>/", PurchaseBookView.as_view(), name="purchase_book"),
     path("purchase_book/", PurchaseBookView.as_view(), name="purchase_book_current"),
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
 ]

@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from calendar import monthrange
 from dataclasses import dataclass
 from itertools import zip_longest
+import json
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
@@ -23,9 +24,15 @@ from openpyxl import Workbook
 from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import (
+    decimal_to_int,
+    list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
     calculate_account_total,
+    calc_monthly_sales,
+    calc_recent_half_year_sales,
+    calc_monthly_profit,
+    calc_recent_half_year_profits,
 )
 from enums.error_messages import ErrorMessages
 
@@ -200,7 +207,7 @@ class LedgerSelectView(TemplateView):
 class GeneralLedgerView(TemplateView):
     """
     特定の勘定科目の総勘定元帳を取得・表示するビュー。
-    URL: /ledger/<str:account_name>/
+    URL: /ledger/general_ledger/<str:account_name>/
     """
 
     template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
@@ -400,7 +407,7 @@ class TrialBalanceView(TemplateView):
         context["trial_balance_data"] = trial_balance_data
 
         return context
-    
+
 
 class ExportTrialBalanceView(View):
     """試算表エクスポートビュー"""
@@ -827,3 +834,49 @@ class PurchaseBookView(TemplateView):
         context["purchase_book"] = purchase_book
 
         return context
+
+
+class DashboardView(TemplateView):
+    """ダッシュボードビュー"""
+    template_name = "ledger/dashboard/page.html"
+
+    PARTIALS = {
+        "sales_chart": "ledger/dashboard/sales_chart.html",
+    }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # ダッシュボード用のデータ取得ロジックをここに実装
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
+        # TODO: 損失の場合，絶対値+赤文字+損失で表示する
+        context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
+
+        # 売上・利益推移グラフ用データ
+        # HACK: 売上・利益推移グラフ用データのJSONシリアライズ処理
+        labels, sales_data, profit_data = self._get_sales_chart_data()
+        context["sales_chart_labels"] = json.dumps(labels)
+        context["sales_chart_sales_data"] = json.dumps(sales_data)
+        context["sales_chart_profit_data"] = json.dumps(profit_data)
+        return context
+
+    def get(self, request, *args, **kwargs):
+        """AJAXリクエストに対してJSONデータを返す処理を追加"""
+        partial = request.GET.get("partial")
+        span = request.GET.get("span", "6months")
+        # 部分テンプレートのレンダリング
+
+        if request.headers.get("HX-Request") and partial in self.PARTIALS:
+            context = self.get_context_data(**kwargs)
+            return render(request, self.PARTIALS[partial], context)
+        return super().get(request, *args, **kwargs)
+
+    def _get_sales_chart_data(self, span: int=6) -> tuple[list[str], list[int], list[int]]:
+        labels = [
+            f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}"
+            for i in range(span - 1, -1, -1)
+        ]
+        sales_data = list_decimal_to_int(calc_recent_half_year_sales())
+        profit_data = list_decimal_to_int(calc_recent_half_year_profits())
+        return labels, sales_data, profit_data

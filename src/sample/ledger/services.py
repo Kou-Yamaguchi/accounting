@@ -1,11 +1,40 @@
 from decimal import Decimal
 from datetime import date
+from typing import Literal
 
 from dateutil.relativedelta import relativedelta
 from django.db.models import Q
 from django.db.models import Sum
 
 from .models import JournalEntry, InitialBalance, Account, Entry, Debit, Credit, PurchaseDetail, Item, Company
+
+
+def decimal_to_int(value: Decimal) -> int:
+    """
+    Decimal型の金額をint型に変換します。
+    小数点以下は切り捨てられます。
+
+    Args:
+        value (Decimal): 変換するDecimal値
+
+    Returns:
+        int: 変換後のint値
+    """
+    return int(value.quantize(Decimal("1.")))
+
+
+def list_decimal_to_int(values: list[Decimal]) -> list[int]:
+    """
+    Decimal型の金額リストをint型のリストに変換します。
+    小数点以下は切り捨てられます。
+
+    Args:
+        values (list[Decimal]): 変換するDecimal値のリスト
+
+    Returns:
+        list[int]: 変換後のint値のリスト
+    """
+    return [decimal_to_int(value) for value in values]
 
 
 def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple[date, date]:
@@ -280,3 +309,144 @@ def calculate_account_total(
         total_amount = credit_total - debit_total
 
     return total_amount
+
+
+def get_total_by_account_type(
+    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], start_date: date, end_date: date
+) -> Decimal:
+    """
+    指定された勘定科目タイプの合計金額を計算します。
+
+    Args:
+        account_type (Literal["asset", "liability", "equity", "revenue", "expense"]): 勘定科目タイプ
+        start_date (date): 期間開始日
+        end_date (date): 期間終了日
+
+    Returns:
+        Decimal: 指定された勘定科目タイプの合計金額
+    """
+    accounts = Account.objects.filter(type=account_type)
+
+    total_amount = sum(
+        calculate_account_total(account, start_date, end_date)
+        for account in accounts
+    )
+
+    return total_amount
+
+
+def calc_monthly_sales(year: int, month: int) -> Decimal:
+    """
+    指定された年月の月次収益を計算します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        Decimal: 月次収益
+    """
+    start_date, end_date = get_month_range(year, month)
+
+    total_sales = get_total_by_account_type("revenue", start_date, end_date)
+
+    return total_sales
+
+
+def calc_recent_half_year_sales() -> list[Decimal]:
+    """
+    直近6ヶ月の月次収益をリストで取得します。
+
+    Returns:
+        list[Decimal]: 直近6ヶ月の月次収益リスト
+    """
+    today = date.today()
+    sales_list = []
+
+    for i in range(6):
+        target_date = today - relativedelta(months=i)
+        year = target_date.year
+        month = target_date.month
+        monthly_sales = calc_monthly_sales(year, month)
+        sales_list.append(monthly_sales)
+
+    sales_list.reverse()  # 古い順に並び替え
+
+    return sales_list
+
+
+def calc_monthly_expense(year: int, month: int) -> Decimal:
+    """
+    指定された年月の月次費用を計算します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        Decimal: 月次費用
+    """
+    start_date, end_date = get_month_range(year, month)
+
+    total_expense = get_total_by_account_type("expense", start_date, end_date)
+
+    return total_expense
+
+
+def calc_recent_half_year_expenses() -> list[Decimal]:
+    """
+    直近6ヶ月の月次費用をリストで取得します。
+
+    Returns:
+        list[Decimal]: 直近6ヶ月の月次費用リスト
+    """
+    today = date.today()
+    expense_list = []
+
+    for i in range(6):
+        target_date = today - relativedelta(months=i)
+        year = target_date.year
+        month = target_date.month
+        monthly_expense = calc_monthly_expense(year, month)
+        expense_list.append(monthly_expense)
+
+    expense_list.reverse()  # 古い順に並び替え
+
+    return expense_list
+
+
+def calc_monthly_profit(year: int, month: int) -> Decimal:
+    """
+    指定された年月の月次利益を計算します。
+
+    Args:
+        year (int): 年
+        month (int): 月
+
+    Returns:
+        Decimal: 月次利益
+    """
+    total_sales = calc_monthly_sales(year, month)
+    total_expense = calc_monthly_expense(year, month)
+
+    monthly_profit = total_sales - total_expense
+
+    return monthly_profit
+
+
+def calc_recent_half_year_profits() -> list[Decimal]:
+    """
+    直近6ヶ月の月次利益をリストで取得します。
+
+    Returns:
+        list[Decimal]: 直近6ヶ月の月次利益リスト
+    """
+    sales_list = calc_recent_half_year_sales()
+    expense_list = calc_recent_half_year_expenses()
+    profit_list = []
+
+    for sales, expense in zip(sales_list, expense_list):
+        profit = sales - expense
+        profit_list.append(profit)
+
+    return profit_list
