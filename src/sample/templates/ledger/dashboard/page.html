@@ -99,7 +99,7 @@
 
   <select 
     name="period" 
-    hx-get="{% url 'dashboard' %}" 
+    hx-get="{% url 'dashboard' %}?partial=sales_chart" 
     hx-trigger="change"
     hx-target="#sales-chart" 
     hx-swap="innerHTML"

@@ -840,6 +840,10 @@ class DashboardView(TemplateView):
     """ダッシュボードビュー"""
     template_name = "ledger/dashboard/page.html"
 
+    PARTIALS = {
+        "sales_chart": "ledger/dashboard/sales_chart.html",
+    }
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # ダッシュボード用のデータ取得ロジックをここに実装
@@ -849,6 +853,8 @@ class DashboardView(TemplateView):
         # TODO: 損失の場合，絶対値+赤文字+損失で表示する
         context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
 
+        # 売上・利益推移グラフ用データ
+        # HACK: 売上・利益推移グラフ用データのJSONシリアライズ処理
         labels, sales_data, profit_data = self._get_sales_chart_data()
         context["sales_chart_labels"] = json.dumps(labels)
         context["sales_chart_sales_data"] = json.dumps(sales_data)
@@ -857,10 +863,11 @@ class DashboardView(TemplateView):
 
     def get(self, request, *args, **kwargs):
         """AJAXリクエストに対してJSONデータを返す処理を追加"""
-        if request.headers.get("HX-Request"):
-            print("AJAX request detected")
+        partial = request.GET.get("partial")
+
+        if request.headers.get("HX-Request") and partial in self.PARTIALS:
             context = self.get_context_data(**kwargs)
-            return render(request, "ledger/dashboard/sales_chart.html", context)
+            return render(request, self.PARTIALS[partial], context)
         return super().get(request, *args, **kwargs)
 
     def _get_sales_chart_data(self) -> tuple[list[str], list[int], list[int]]:
