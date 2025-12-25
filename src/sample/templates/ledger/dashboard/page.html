@@ -96,24 +96,19 @@
   </div>
 
   <!-- 売上推移 + 費用内訳 -->
-
-  <select 
-    name="period" 
-    hx-get="{% url 'dashboard' %}?partial=sales_chart" 
-    hx-trigger="change"
-    hx-target="#sales-chart" 
-    hx-swap="innerHTML"
-  >
-    <option value="3">直近3ヶ月</option>
-    <option value="6">直近6ヶ月</option>
-    <option value="12">直近1年</option>
-    <option value="24">直近2年</option>
-  </select>
-
   <div class="grid-2">
-    <div class="card" id="sales-chart">
+    <div class="card">
       <h2>月次売上・利益推移</h2>
-      {% include "ledger/dashboard/sales_chart.html" %}
+      <select name="period" hx-get="{% url 'dashboard' %}?partial=sales_chart" hx-trigger="change" hx-target="#sales-chart"
+        hx-swap="innerHTML">
+        <option value="3">直近3ヶ月</option>
+        <option value="6">直近6ヶ月</option>
+        <option value="12">直近1年</option>
+        <option value="24">直近2年</option>
+      </select>
+      <div id="sales-chart">
+        {% include "ledger/dashboard/sales_chart.html" %}
+      </div>
     </div>
     <div class="card">
       <h2>費用内訳</h2>

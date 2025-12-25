@@ -864,16 +864,18 @@ class DashboardView(TemplateView):
     def get(self, request, *args, **kwargs):
         """AJAXリクエストに対してJSONデータを返す処理を追加"""
         partial = request.GET.get("partial")
+        span = request.GET.get("span", "6months")
+        # 部分テンプレートのレンダリング
 
         if request.headers.get("HX-Request") and partial in self.PARTIALS:
             context = self.get_context_data(**kwargs)
             return render(request, self.PARTIALS[partial], context)
         return super().get(request, *args, **kwargs)
 
-    def _get_sales_chart_data(self) -> tuple[list[str], list[int], list[int]]:
+    def _get_sales_chart_data(self, span: int=6) -> tuple[list[str], list[int], list[int]]:
         labels = [
             f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}"
-            for i in range(5, -1, -1)
+            for i in range(span - 1, -1, -1)
         ]
         sales_data = list_decimal_to_int(calc_recent_half_year_sales())
         profit_data = list_decimal_to_int(calc_recent_half_year_profits())
