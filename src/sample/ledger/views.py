@@ -389,6 +389,7 @@ class TrialBalanceView(TemplateView):
         for account in accounts:
             total = calculate_account_total(account, start_date, end_date)
 
+            # html表示時特有の処理 ===========================
             trial_balance_data_entry = TrialBalanceEntry(
                 name=account.name,
                 type=account.type,
@@ -412,7 +413,6 @@ class TrialBalanceView(TemplateView):
 class ExportTrialBalanceView(View):
     """試算表エクスポートビュー"""
     def get(self, request, *args, **kwargs):
-        # TODO: エクスポート処理の実装
         wb = Workbook()
         ws = wb.active
 
@@ -429,6 +429,7 @@ class ExportTrialBalanceView(View):
         for account in accounts:
             total = calculate_account_total(account, start_date, end_date)
 
+            # エクスポート時特有の処理 ===========================
             if account.type in ['asset', 'expense']:
                 ws.append([total, account.name, ""])
                 total_debits += total
@@ -846,7 +847,6 @@ class DashboardView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # ダッシュボード用のデータ取得ロジックをここに実装
         current_year = datetime.now().year
         current_month = datetime.now().month
         context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
