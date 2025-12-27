@@ -42,20 +42,26 @@ def get_all_account_objects() -> list[Account]:
     return list(Account.objects.all().order_by("type", "name"))
 
 
-def calc_all_account_totals(fiscal_range: DayRange) -> dict[int, Decimal]:
+@dataclass
+class AccountTotal:
+    account_object: Account
+    total_amount: Decimal
+
+
+def calc_all_account_totals(fiscal_range: DayRange) -> list[AccountTotal]:
     """全ての勘定科目の合計金額を計算するユーティリティ関数。
 
     Args:
         fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
-        dict[int, Decimal]: { account_id: total_amount, ... }
+        list[AccountTotal]: List of AccountTotal instances
     """
-    account_totals = {}
+    account_totals: list[AccountTotal] = []
     accounts = get_all_account_objects()
     for account in accounts:
         total = calculate_account_total(account, fiscal_range)
-        account_totals[account.id] = total
+        account_totals.append(AccountTotal(account, total))
     return account_totals
 
 
