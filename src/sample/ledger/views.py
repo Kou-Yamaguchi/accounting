@@ -41,6 +41,24 @@ def get_all_account_objects() -> list[Account]:
     """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
     return list(Account.objects.all().order_by("type", "name"))
 
+
+def calc_all_account_totals(fiscal_range: DayRange) -> dict[int, Decimal]:
+    """全ての勘定科目の合計金額を計算するユーティリティ関数。
+
+    Args:
+        fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+
+    Returns:
+        dict[int, Decimal]: { account_id: total_amount, ... }
+    """
+    account_totals = {}
+    accounts = get_all_account_objects()
+    for account in accounts:
+        total = calculate_account_total(account, fiscal_range)
+        account_totals[account.id] = total
+    return account_totals
+
+
 @dataclass
 class YearMonth:
     year: int
@@ -421,34 +439,28 @@ class ExportTrialBalanceView(View):
         def _parse_year():
             return int(request.GET.get("year"))
 
-        def _get_insert_data_list(accounts: list[Account]) -> list[list]:
-            def _get_account_total_rows(accounts: list[Account], fiscal_range: DayRange) -> list[list]:
-                insert_data = []
-                for account in accounts:
-                    total = calculate_account_total(account, fiscal_range)
-                    if account.type in ['asset', 'expense']:
-                        insert_data.append([total, account.name, ""])
-                    else:
-                        insert_data.append(["", account.name, total])
+        def _get_account_total_rows(accounts: list[Account], fiscal_range: DayRange) -> list[list]:
+            insert_data = []
+            for account in accounts:
+                total = calculate_account_total(account, fiscal_range)
+                if account.type in ['asset', 'expense']:
+                    insert_data.append([total, account.name, ""])
+                else:
+                    insert_data.append(["", account.name, total])
 
-                return insert_data
-
-            def _get_total_debits_credits():
-                total_debits = Decimal("0.00")
-                total_credits = Decimal("0.00")
-                for account in accounts:
-                    total = calculate_account_total(account, fiscal_range)
-                    if account.type in ['asset', 'expense']:
-                        total_debits += total
-                    else:
-                        total_credits += total
-                return total_debits, total_credits
-            
-            insert_data = _get_account_total_rows(accounts, fiscal_range)
-            total_debits, total_credits = _get_total_debits_credits()
-            insert_data.append([total_debits, "合計", total_credits])
             return insert_data
-            
+
+        def _get_total_debits_credits():
+            total_debits = Decimal("0.00")
+            total_credits = Decimal("0.00")
+            for account in accounts:
+                total = calculate_account_total(account, fiscal_range)
+                if account.type in ['asset', 'expense']:
+                    total_debits += total
+                else:
+                    total_credits += total
+            return total_debits, total_credits
+
         def _write_header(ws):
             ws.append(["借方", "勘定科目", "貸方"])
 
@@ -466,7 +478,9 @@ class ExportTrialBalanceView(View):
 
         accounts: list[Account] = get_all_account_objects()
 
-        insert_data = _get_insert_data_list(accounts)
+        insert_data = _get_account_total_rows(accounts, fiscal_range)
+        total_debits, total_credits = _get_total_debits_credits()
+        insert_data.append([total_debits, "合計", total_credits])
 
         _write_to_worksheet(insert_data, ws)
 
