@@ -7,7 +7,7 @@ import json
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpRequest
 from django.views.generic import (
     View,
     ListView,
@@ -412,32 +412,50 @@ class TrialBalanceView(TemplateView):
 
 class ExportTrialBalanceView(View):
     """試算表エクスポートビュー"""
-    def get(self, request, *args, **kwargs):
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        def _get_all_accounts() -> list[Account]:
+            return Account.objects.all().order_by("type", "name")
+
+        def _parse_year():
+            return int(request.GET.get("year"))
+
+        def _get_insert_data_list(accounts: list[Account]) -> list[list]:
+            insert_data = []
+            total_debits = Decimal("0.00")
+            total_credits = Decimal("0.00")
+            for account in accounts:
+                total = calculate_account_total(account, start_date, end_date)
+
+                if account.type in ['asset', 'expense']:
+                    insert_data.append([total, account.name, ""])
+                    total_debits += total
+                else:
+                    insert_data.append(["", account.name, total])
+                    total_credits += total
+
+            insert_data.append([total_debits, "合計", total_credits])
+            return insert_data
+
+        def _write_header(ws):
+            ws.append(["借方", "勘定科目", "貸方"])
+
+        def _write_to_worksheet(insert_data: list[list], ws):
+            for row in insert_data:
+                ws.append(row)
+        
         wb = Workbook()
         ws = wb.active
 
-        ws.append(["借方", "勘定科目", "貸方"])
+        _write_header(ws)
 
-        year = int(self.request.GET.get("year"))
+        year = _parse_year()
         start_date, end_date = get_fiscal_range(year)
 
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
+        accounts = _get_all_accounts()
 
-        accounts = Account.objects.all().order_by("type", "name")
+        insert_data = _get_insert_data_list(accounts)
 
-        for account in accounts:
-            total = calculate_account_total(account, start_date, end_date)
-
-            # エクスポート時特有の処理 ===========================
-            if account.type in ['asset', 'expense']:
-                ws.append([total, account.name, ""])
-                total_debits += total
-            else:
-                ws.append(["", account.name, total])
-                total_credits += total
-
-        ws.append([total_debits, "合計", total_credits])
+        _write_to_worksheet(insert_data, ws)
 
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename=trial_balance_{year}.xlsx'
