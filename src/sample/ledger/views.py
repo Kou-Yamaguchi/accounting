@@ -37,6 +37,10 @@ from ledger.services import (
 )
 from enums.error_messages import ErrorMessages
 
+def get_all_account_objects() -> list[Account]:
+    """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
+    return list(Account.objects.all().order_by("type", "name"))
+
 @dataclass
 class YearMonth:
     year: int
@@ -380,7 +384,7 @@ class TrialBalanceView(TemplateView):
         fiscal_range: DayRange = get_fiscal_range(year)
 
         # 全勘定科目を取得
-        accounts = Account.objects.all().order_by("type", "name")
+        accounts: list[Account] = get_all_account_objects()
 
         trial_balance_data: list[TrialBalanceEntry] = []
 
@@ -414,9 +418,6 @@ class TrialBalanceView(TemplateView):
 class ExportTrialBalanceView(View):
     """試算表エクスポートビュー"""
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        def _get_all_accounts() -> list[Account]:
-            return Account.objects.all().order_by("type", "name")
-
         def _parse_year():
             return int(request.GET.get("year"))
 
@@ -452,7 +453,7 @@ class ExportTrialBalanceView(View):
         year = _parse_year()
         fiscal_range: DayRange = get_fiscal_range(year)
 
-        accounts = _get_all_accounts()
+        accounts: list[Account] = get_all_account_objects()
 
         insert_data = _get_insert_data_list(accounts)
 
