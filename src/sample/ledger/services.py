@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import date
 from typing import Literal
+from dataclasses import dataclass
 
 from dateutil.relativedelta import relativedelta
 from django.db.models import Q
@@ -37,7 +38,13 @@ def list_decimal_to_int(values: list[Decimal]) -> list[int]:
     return [decimal_to_int(value) for value in values]
 
 
-def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple[date, date]:
+@dataclass
+class DayRange:
+    start: date
+    end: date
+
+
+def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> DayRange:
     """
     指定された年の会計期間の開始日と終了日を取得します。
     queryパラメータで会計年度を指定する場合に使用します。
@@ -50,11 +57,12 @@ def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple
         months (int): 会計年度の月数 (デフォルトは12ヶ月)
 
     Returns:
-        tuple[date, date]: 会計期間の開始日と終了日
+        DayRange: 会計期間の開始日と終了日
     """
     start_date = date(year, start_month, 1)
     end_date = start_date + relativedelta(months=months) - relativedelta(days=1)
-    return start_date, end_date
+    result = DayRange(start=start_date, end=end_date)
+    return result
 
 
 def get_month_range(year: int, month: int) -> tuple[date, date]:

@@ -28,6 +28,7 @@ from ledger.services import (
     list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
+    DayRange,
     calculate_account_total,
     calc_monthly_sales,
     calc_recent_half_year_sales,
@@ -376,7 +377,7 @@ class TrialBalanceView(TemplateView):
         # HACK: excel出力時と同じロジックなので共通化したい
         year = int(self.request.GET.get("year"))
 
-        start_date, end_date = get_fiscal_range(year)
+        fiscal_range: DayRange = get_fiscal_range(year)
 
         # 全勘定科目を取得
         accounts = Account.objects.all().order_by("type", "name")
@@ -387,7 +388,7 @@ class TrialBalanceView(TemplateView):
         total_credits = Decimal("0.00")
 
         for account in accounts:
-            total = calculate_account_total(account, start_date, end_date)
+            total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
 
             # html表示時特有の処理 ===========================
             trial_balance_data_entry = TrialBalanceEntry(
@@ -424,7 +425,7 @@ class ExportTrialBalanceView(View):
             total_debits = Decimal("0.00")
             total_credits = Decimal("0.00")
             for account in accounts:
-                total = calculate_account_total(account, start_date, end_date)
+                total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
 
                 if account.type in ['asset', 'expense']:
                     insert_data.append([total, account.name, ""])
@@ -449,7 +450,7 @@ class ExportTrialBalanceView(View):
         _write_header(ws)
 
         year = _parse_year()
-        start_date, end_date = get_fiscal_range(year)
+        fiscal_range: DayRange = get_fiscal_range(year)
 
         accounts = _get_all_accounts()
 
@@ -472,7 +473,7 @@ class BalanceSheetView(TemplateView):
         # 貸借対照表のデータ取得ロジックをここに実装
         year = int(self.request.GET.get("year", datetime.now().year))
         context["year"] = year
-        start_date, end_date = get_fiscal_range(year)
+        fiscal_range: DayRange = get_fiscal_range(year)
 
         total_debits = Decimal("0.00")
         total_credits = Decimal("0.00")
@@ -482,7 +483,7 @@ class BalanceSheetView(TemplateView):
             account_data = []
 
             for account in accounts:
-                total = calculate_account_total(account, start_date, end_date)
+                total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
 
                 account_data.append({
                     "account": account,
@@ -532,7 +533,7 @@ class ProfitAndLossView(TemplateView):
         # 損益計算書のデータ取得ロジックをここに実装
         year = int(self.request.GET.get("year", datetime.now().year))
         context["year"] = year
-        start_date, end_date = get_fiscal_range(year)
+        fiscal_range: DayRange = get_fiscal_range(year)
 
         total_revenue = Decimal("0.00")
         total_expense = Decimal("0.00")
@@ -542,7 +543,7 @@ class ProfitAndLossView(TemplateView):
             account_data = []
 
             for account in accounts:
-                total = calculate_account_total(account, start_date, end_date)
+                total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
 
                 account_data.append({
                     "account": account,
