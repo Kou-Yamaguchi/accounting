@@ -422,22 +422,33 @@ class ExportTrialBalanceView(View):
             return int(request.GET.get("year"))
 
         def _get_insert_data_list(accounts: list[Account]) -> list[list]:
-            insert_data = []
-            total_debits = Decimal("0.00")
-            total_credits = Decimal("0.00")
-            for account in accounts:
-                total = calculate_account_total(account, fiscal_range)
+            def _get_account_total_rows(accounts: list[Account], fiscal_range: DayRange) -> list[list]:
+                insert_data = []
+                for account in accounts:
+                    total = calculate_account_total(account, fiscal_range)
+                    if account.type in ['asset', 'expense']:
+                        insert_data.append([total, account.name, ""])
+                    else:
+                        insert_data.append(["", account.name, total])
 
-                if account.type in ['asset', 'expense']:
-                    insert_data.append([total, account.name, ""])
-                    total_debits += total
-                else:
-                    insert_data.append(["", account.name, total])
-                    total_credits += total
+                return insert_data
 
+            def _get_total_debits_credits():
+                total_debits = Decimal("0.00")
+                total_credits = Decimal("0.00")
+                for account in accounts:
+                    total = calculate_account_total(account, fiscal_range)
+                    if account.type in ['asset', 'expense']:
+                        total_debits += total
+                    else:
+                        total_credits += total
+                return total_debits, total_credits
+            
+            insert_data = _get_account_total_rows(accounts, fiscal_range)
+            total_debits, total_credits = _get_total_debits_credits()
             insert_data.append([total_debits, "合計", total_credits])
             return insert_data
-
+            
         def _write_header(ws):
             ws.append(["借方", "勘定科目", "貸方"])
 
