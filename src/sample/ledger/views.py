@@ -408,29 +408,23 @@ class TrialBalanceView(TemplateView):
         fiscal_range: DayRange = get_fiscal_range(year)
 
         # 全勘定科目を取得
-        accounts: list[Account] = get_all_account_objects()
-
         trial_balance_data: list[TrialBalanceEntry] = []
-
         total_debits = Decimal("0.00")
         total_credits = Decimal("0.00")
-
-        for account in accounts:
-            total = calculate_account_total(account, fiscal_range)
-
-            # html表示時特有の処理 ===========================
+        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+        for account_total in account_totals:
             trial_balance_data_entry = TrialBalanceEntry(
-                name=account.name,
-                type=account.type,
-                total=total,
+                name=account_total.account_object.name,
+                type=account_total.account_object.type,
+                total=account_total.total_amount,
             )
-
             trial_balance_data.append(trial_balance_data_entry)
 
-            if account.type in ['asset', 'expense']:
-                total_debits += total
+            if account_total.account_object.type in ["asset", "expense"]:
+                total_debits += account_total.total_amount
             else:
-                total_credits += total
+                total_credits += account_total.total_amount
+
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
         context["year"] = year
