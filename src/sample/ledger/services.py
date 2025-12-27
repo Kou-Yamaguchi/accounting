@@ -320,22 +320,19 @@ def calculate_account_total(
 
 
 def get_total_by_account_type(
-    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], start_date: date, end_date: date
+    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], day_range: DayRange
 ) -> Decimal:
     """
     指定された勘定科目タイプの合計金額を計算します。
 
     Args:
         account_type (Literal["asset", "liability", "equity", "revenue", "expense"]): 勘定科目タイプ
-        start_date (date): 期間開始日
-        end_date (date): 期間終了日
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
         Decimal: 指定された勘定科目タイプの合計金額
     """
     accounts = Account.objects.filter(type=account_type)
-
-    day_range = DayRange(start=start_date, end=end_date)
 
     total_amount = sum(
         calculate_account_total(account, day_range)
@@ -358,7 +355,7 @@ def calc_monthly_sales(year: int, month: int) -> Decimal:
     """
     month_range: DayRange = get_month_range(year, month)
 
-    total_sales = get_total_by_account_type("revenue", month_range.start, month_range.end)
+    total_sales = get_total_by_account_type("revenue", month_range)
 
     return total_sales
 
@@ -398,7 +395,7 @@ def calc_monthly_expense(year: int, month: int) -> Decimal:
     """
     month_range: DayRange = get_month_range(year, month)
 
-    total_expense = get_total_by_account_type("expense", month_range.start, month_range.end)
+    total_expense = get_total_by_account_type("expense", month_range)
 
     return total_expense
 
