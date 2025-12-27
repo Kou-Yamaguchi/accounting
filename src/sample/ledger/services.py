@@ -65,7 +65,7 @@ def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> DayRa
     return result
 
 
-def get_month_range(year: int, month: int) -> tuple[date, date]:
+def get_month_range(year: int, month: int) -> DayRange:
     """
     指定された年月の開始日と終了日を取得します。
 
@@ -74,11 +74,12 @@ def get_month_range(year: int, month: int) -> tuple[date, date]:
         month (int): 月
 
     Returns:
-        tuple[date, date]: 月の開始日と終了日
+        DayRange: 月の開始日と終了日
     """
     start_date = date(year, month, 1)
     end_date = start_date + relativedelta(months=1) - relativedelta(days=1)
-    return start_date, end_date
+    result = DayRange(start=start_date, end=end_date)
+    return result
 
 
 def get_initial_balance(account_id: int) -> Decimal:
@@ -355,9 +356,9 @@ def calc_monthly_sales(year: int, month: int) -> Decimal:
     Returns:
         Decimal: 月次収益
     """
-    start_date, end_date = get_month_range(year, month)
+    month_range: DayRange = get_month_range(year, month)
 
-    total_sales = get_total_by_account_type("revenue", start_date, end_date)
+    total_sales = get_total_by_account_type("revenue", month_range.start, month_range.end)
 
     return total_sales
 
@@ -395,9 +396,9 @@ def calc_monthly_expense(year: int, month: int) -> Decimal:
     Returns:
         Decimal: 月次費用
     """
-    start_date, end_date = get_month_range(year, month)
+    month_range: DayRange = get_month_range(year, month)
 
-    total_expense = get_total_by_account_type("expense", start_date, end_date)
+    total_expense = get_total_by_account_type("expense", month_range.start, month_range.end)
 
     return total_expense
 
