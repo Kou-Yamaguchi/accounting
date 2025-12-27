@@ -388,7 +388,7 @@ class TrialBalanceView(TemplateView):
         total_credits = Decimal("0.00")
 
         for account in accounts:
-            total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
+            total = calculate_account_total(account, fiscal_range)
 
             # html表示時特有の処理 ===========================
             trial_balance_data_entry = TrialBalanceEntry(
@@ -425,7 +425,7 @@ class ExportTrialBalanceView(View):
             total_debits = Decimal("0.00")
             total_credits = Decimal("0.00")
             for account in accounts:
-                total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
+                total = calculate_account_total(account, fiscal_range)
 
                 if account.type in ['asset', 'expense']:
                     insert_data.append([total, account.name, ""])
@@ -483,7 +483,7 @@ class BalanceSheetView(TemplateView):
             account_data = []
 
             for account in accounts:
-                total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
+                total = calculate_account_total(account, fiscal_range)
 
                 account_data.append({
                     "account": account,
@@ -543,7 +543,7 @@ class ProfitAndLossView(TemplateView):
             account_data = []
 
             for account in accounts:
-                total = calculate_account_total(account, fiscal_range.start, fiscal_range.end)
+                total = calculate_account_total(account, fiscal_range)
 
                 account_data.append({
                     "account": account,

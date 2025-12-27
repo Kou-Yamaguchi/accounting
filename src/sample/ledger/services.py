@@ -291,24 +291,23 @@ def calculate_each_entry_total(
 
 
 def calculate_account_total(
-    account: Account, start_date: date, end_date: date
-):
+    account: Account, day_range: DayRange
+) -> Decimal:
     """
     各勘定科目の合計金額を計算するユーティリティメソッド。
 
     Args:
         account (Account): 対象の勘定科目
-        start_date (date): 期間開始日
-        end_date (date): 期間終了日
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
         Decimal: 指定期間内の勘定科目の合計金額
     """
     debit_total = calculate_each_entry_total(
-        Debit, account, start_date, end_date
+        Debit, account, day_range.start, day_range.end
     )
     credit_total = calculate_each_entry_total(
-        Credit, account, start_date, end_date
+        Credit, account, day_range.start, day_range.end
     )
 
     if account.type in ["asset", "expense"]:
@@ -335,8 +334,10 @@ def get_total_by_account_type(
     """
     accounts = Account.objects.filter(type=account_type)
 
+    day_range = DayRange(start=start_date, end=end_date)
+
     total_amount = sum(
-        calculate_account_total(account, start_date, end_date)
+        calculate_account_total(account, day_range)
         for account in accounts
     )
 
