@@ -392,16 +392,24 @@ class TrialBalanceEntry:
     total: Decimal
 
 
-class TrialBalanceView(TemplateView):
+class TrialBalanceView(View):
     """
     試算表ビュー
     該当年度の試算表を表示する。
     URL: /ledger/trial_balance_by_year/
     """
+
     template_name = "ledger/trial_balance_partial.html"
 
-    def get_context_data(self, **kwargs):
-        def _get_trial_balance_data(account_totals: list[AccountTotal]) -> list[TrialBalanceEntry]:
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        year = int(request.GET.get("year"))
+        context = self.get_data(year=year, **kwargs)
+        return render(request, self.template_name, context)
+
+    def get_data(self, year: int, **kwargs):
+        def _get_trial_balance_data(
+            account_totals: list[AccountTotal],
+        ) -> list[TrialBalanceEntry]:
             trial_balance_data: list[TrialBalanceEntry] = []
             for account_total in account_totals:
                 trial_balance_data_entry = TrialBalanceEntry(
@@ -412,32 +420,36 @@ class TrialBalanceView(TemplateView):
                 trial_balance_data.append(trial_balance_data_entry)
             return trial_balance_data
 
-        def _get_total_debits_credits(account_totals: list[AccountTotal]) -> tuple[Decimal, Decimal]:
+        def _get_total_debits_credits(
+            account_totals: list[AccountTotal],
+        ) -> tuple[Decimal, Decimal]:
             total_debits = Decimal("0.00")
             total_credits = Decimal("0.00")
             for account_total in account_totals:
                 account = account_total.account_object
-                if account.type in ['asset', 'expense']:
+                if account.type in ["asset", "expense"]:
                     total_debits += account_total.total_amount
                 else:
                     total_credits += account_total.total_amount
             return total_debits, total_credits
 
-        context = super().get_context_data(**kwargs)
-        # HACK: excel出力時と同じロジックなので共通化したい
-        year = int(self.request.GET.get("year"))
+        # year = int(self.request.GET.get("year"))
         fiscal_range: DayRange = get_fiscal_range(year)
         account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
         total_debits, total_credits = _get_total_debits_credits(account_totals)
 
-        trial_balance_data: list[TrialBalanceEntry] = _get_trial_balance_data(account_totals)
+        trial_balance_data: list[TrialBalanceEntry] = _get_trial_balance_data(
+            account_totals
+        )
 
-        context["total_debits"] = total_debits
-        context["total_credits"] = total_credits
-        context["year"] = year
-        context["trial_balance_data"] = trial_balance_data
+        data = {
+            "total_debits": total_debits,
+            "total_credits": total_credits,
+            "year": year,
+            "trial_balance_data": trial_balance_data,
+        }
 
-        return context
+        return data
 
 
 class ExportTrialBalanceView(View):

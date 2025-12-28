@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
+from django.http import HttpRequest, HttpResponse
 
 from ledger.models import (
     JournalEntry,
@@ -585,6 +586,7 @@ class TrialBalanceViewTest(TestCase):
     def setUp(self):
         # テストに必要な初期データ（勘定科目）を作成
         self.factory = RequestFactory()
+        self.view = TrialBalanceView()
 
         self.accounts = create_accounts(
             [
@@ -604,13 +606,14 @@ class TrialBalanceViewTest(TestCase):
         試算表ビューにアクセスできることを確認するテストケース
         """
         request = self.factory.get(self.url)
-        response = TrialBalanceView.as_view()(request)
+        response: HttpResponse = TrialBalanceView.as_view()(request)
+
+        context = self.view.get_data(year=2025)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("trial_balance_data", response.context_data)
 
         # 全ての勘定科目がresponseに含まれていることを確認
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data[
+        trial_balance_data: list[TrialBalanceEntry] = context[
             "trial_balance_data"
         ]
         account_names_in_response = {entry.name for entry in trial_balance_data}
@@ -644,8 +647,10 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
+        context = self.view.get_data(year=2025)
+
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data[
+        trial_balance_data: list[TrialBalanceEntry] = context[
             "trial_balance_data"
         ]
 
@@ -681,8 +686,10 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
+        context = self.view.get_data(year=2025)
+
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data[
+        trial_balance_data: list[TrialBalanceEntry] = context[
             "trial_balance_data"
         ]
 
@@ -706,8 +713,10 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
+        context = self.view.get_data(year=2025)
+
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data[
+        trial_balance_data: list[TrialBalanceEntry] = context[
             "trial_balance_data"
         ]
 
