@@ -404,23 +404,47 @@ class TrialBalanceView(View):
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         year = int(request.GET.get("year"))
         output_format = request.GET.get("format", "html")
-        data = self.get_data(year, output_format)
+        # data = self.get_data(year, output_format)
+        account_totals, total_debits, total_credits = self.get_data(year)
         if output_format == "xlsx":
+            data = self._form_to_xlsx_rows(account_totals, total_debits, total_credits)
             return self._export_as_xlsx(data, year)
-        return render(request, self.template_name, data)
+        
+        data = self._form_to_html_rows(
+            account_totals, year, total_debits, total_credits
+        )
+        return self._export_as_html(request, self.template_name, data)
+
+    def get_data(self, year: int) -> dict:
+
+        fiscal_range: DayRange = get_fiscal_range(year)
+        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+        total_debits, total_credits = self._get_total_debits_credits(account_totals)
+
+        return account_totals, total_debits, total_credits
+
+        if output_format == "xlsx":
+            return self._form_to_xlsx_rows(account_totals, total_debits, total_credits)
+
+        return self._form_to_html_rows(
+            account_totals, year, total_debits, total_credits
+        )
+    
+    def _export_as_html(self, request: HttpRequest, template_name: str, context: dict) -> HttpResponse:
+        return render(request, template_name, context)
 
     def _export_as_xlsx(self, insert_data: list[list], year: int) -> HttpResponse:
         def _write_header(ws):
             ws.append(["借方", "勘定科目", "貸方"])
 
-        def _write_to_worksheet(insert_data: list[list], ws):
+        def _write_data_to_worksheet(insert_data: list[list], ws):
             for row in insert_data:
                 ws.append(row)
 
         wb = Workbook()
         ws = wb.active
         _write_header(ws)
-        _write_to_worksheet(insert_data, ws)
+        _write_data_to_worksheet(insert_data, ws)
 
         response = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -431,74 +455,66 @@ class TrialBalanceView(View):
         wb.save(response)
         return response
 
-    def get_data(self, year: int, output_format: str) -> dict:
-        def _get_trial_balance_data(
-            account_totals: list[AccountTotal],
-        ) -> list[TrialBalanceEntry]:
-            trial_balance_data: list[TrialBalanceEntry] = []
-            for account_total in account_totals:
-                trial_balance_data_entry = TrialBalanceEntry(
-                    name=account_total.account_object.name,
-                    type=account_total.account_object.type,
-                    total=account_total.total_amount,
-                )
-                trial_balance_data.append(trial_balance_data_entry)
-            return trial_balance_data
+    def _get_trial_balance_data(
+        self,
+        account_totals: list[AccountTotal],
+    ) -> list[TrialBalanceEntry]:
+        trial_balance_data: list[TrialBalanceEntry] = [TrialBalanceEntry(account_total.account_object.name, account_total.account_object.type, account_total.total_amount) for account_total in account_totals]
+        return trial_balance_data
 
-        def _get_account_total_rows(fiscal_range: DayRange) -> list[list]:
-            insert_data = []
-            account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
-            for account_total in account_totals:
-                account = account_total.account_object
-                if account.type in ["asset", "expense"]:
-                    insert_data.append([account_total.total_amount, account.name, ""])
-                else:
-                    insert_data.append(["", account.name, account_total.total_amount])
+    def _get_account_total_rows(self, trial_balance_data: list[TrialBalanceEntry]) -> list[list]:
+        insert_data = []
+        for entry in trial_balance_data:
+            if entry.type in ["asset", "expense"]:
+                insert_data.append([entry.total, entry.name, ""])
+            else:
+                insert_data.append(["", entry.name, entry.total])
 
-            return insert_data
+        return insert_data
 
-        def _get_total_debits_credits(
-            account_totals: list[AccountTotal],
-        ) -> tuple[Decimal, Decimal]:
-            total_debits = Decimal("0.00")
-            total_credits = Decimal("0.00")
-            for account_total in account_totals:
-                account = account_total.account_object
-                if account.type in ["asset", "expense"]:
-                    total_debits += account_total.total_amount
-                else:
-                    total_credits += account_total.total_amount
-            return total_debits, total_credits
+    def _get_total_debits_credits(
+        self,
+        account_totals: list[AccountTotal],
+    ) -> tuple[Decimal, Decimal]:
+        total_debits = Decimal("0.00")
+        total_credits = Decimal("0.00")
+        for account_total in account_totals:
+            account = account_total.account_object
+            if account.type in ["asset", "expense"]:
+                total_debits += account_total.total_amount
+            else:
+                total_credits += account_total.total_amount
+        return total_debits, total_credits
 
-        def _form_to_html_rows(account_totals: list[AccountTotal], total_debits: Decimal, total_credits: Decimal) -> dict:
-            trial_balance_data: list[TrialBalanceEntry] = _get_trial_balance_data(
-                account_totals
-            )
+    def _form_to_html_rows(
+        self,
+        account_totals: list[AccountTotal],
+        year: int,
+        total_debits: Decimal,
+        total_credits: Decimal,
+    ) -> dict:
+        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(
+            account_totals
+        )
 
-            data = {
-                "total_debits": total_debits,
-                "total_credits": total_credits,
-                "year": year,
-                "trial_balance_data": trial_balance_data,
-            }
+        data = {
+            "total_debits": total_debits,
+            "total_credits": total_credits,
+            "year": year,
+            "trial_balance_data": trial_balance_data,
+        }
 
-            return data
+        return data
 
-        def _form_to_xlsx_rows(
-            fiscal_range: DayRange, total_debits: Decimal, total_credits: Decimal
-        ) -> list[list]:
-            insert_data = _get_account_total_rows(fiscal_range)
-            insert_data.append([total_debits, "合計", total_credits])
-            return insert_data
-
-        fiscal_range: DayRange = get_fiscal_range(year)
-        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
-        total_debits, total_credits = _get_total_debits_credits(account_totals)
-
-        if output_format == "xlsx":
-            return _form_to_xlsx_rows(fiscal_range, total_debits, total_credits)
-
-        return _form_to_html_rows(account_totals, total_debits, total_credits)
+    def _form_to_xlsx_rows(
+        self, account_totals: list[AccountTotal], total_debits: Decimal, total_credits: Decimal
+    ) -> list[list]:
+        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(
+            account_totals
+        )
+        insert_data = self._get_account_total_rows(trial_balance_data)
+        insert_data.append([total_debits, "合計", total_credits])
+        return insert_data
 
 
 class BalanceSheetView(TemplateView):
