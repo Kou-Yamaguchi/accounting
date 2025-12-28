@@ -404,14 +404,13 @@ class TrialBalanceView(TemplateView):
         context = super().get_context_data(**kwargs)
         # HACK: excel出力時と同じロジックなので共通化したい
         year = int(self.request.GET.get("year"))
-
         fiscal_range: DayRange = get_fiscal_range(year)
+        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
 
         # 全勘定科目を取得
         trial_balance_data: list[TrialBalanceEntry] = []
         total_debits = Decimal("0.00")
         total_credits = Decimal("0.00")
-        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
         for account_total in account_totals:
             trial_balance_data_entry = TrialBalanceEntry(
                 name=account_total.account_object.name,
@@ -451,10 +450,9 @@ class ExportTrialBalanceView(View):
 
             return insert_data
 
-        def _get_total_debits_credits():
+        def _get_total_debits_credits(account_totals: list[AccountTotal]) -> tuple[Decimal, Decimal]:
             total_debits = Decimal("0.00")
             total_credits = Decimal("0.00")
-            account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
             for account_total in account_totals:
                 account = account_total.account_object
                 if account.type in ['asset', 'expense']:
@@ -472,14 +470,14 @@ class ExportTrialBalanceView(View):
         
         wb = Workbook()
         ws = wb.active
-
         _write_header(ws)
 
         year = _parse_year()
         fiscal_range: DayRange = get_fiscal_range(year)
+        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
 
         insert_data = _get_account_total_rows(fiscal_range)
-        total_debits, total_credits = _get_total_debits_credits()
+        total_debits, total_credits = _get_total_debits_credits(account_totals)
         insert_data.append([total_debits, "合計", total_credits])
 
         _write_to_worksheet(insert_data, ws)
