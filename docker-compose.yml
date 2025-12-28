@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   # サービス名
   django:

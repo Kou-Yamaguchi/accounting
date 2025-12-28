@@ -12,11 +12,12 @@
 </head>
 
 <h2>残高試算表</h2>
-<form action="{% url 'export_trial_balance' %}" method="get">
+<form action="{% url 'trial_balance_by_year' %}" method="get">
   <label for="year">年：</label>
-  <input type="number" name="year" value="2025" hx-get="{% url 'trial_balance_by_year' %}" hx-trigger="load, change"
+  <input type="number" name="year" value="2025" hx-get="{% url 'trial_balance_by_year' %}?format=html" hx-trigger="load, change"
     hx-target="#trial-balance" hx-include="this" 
   />
+  <input type="hidden" name="format" value="xlsx" />
   <button type="submit">エクスポート（通常版）</button>
 </form>
 

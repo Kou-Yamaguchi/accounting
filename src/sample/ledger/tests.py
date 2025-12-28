@@ -608,7 +608,7 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response: HttpResponse = TrialBalanceView.as_view()(request)
 
-        context = self.view.get_data(year=2025)
+        context = self.view.get_data(year=2025, output_format="html")
 
         self.assertEqual(response.status_code, 200)
 
@@ -647,7 +647,7 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        context = self.view.get_data(year=2025)
+        context = self.view.get_data(year=2025, output_format="html")
 
         self.assertEqual(response.status_code, 200)
         trial_balance_data: list[TrialBalanceEntry] = context[
@@ -686,7 +686,7 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        context = self.view.get_data(year=2025)
+        context = self.view.get_data(year=2025, output_format="html")
 
         self.assertEqual(response.status_code, 200)
         trial_balance_data: list[TrialBalanceEntry] = context[
@@ -713,7 +713,7 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        context = self.view.get_data(year=2025)
+        context = self.view.get_data(year=2025, output_format="html")
 
         self.assertEqual(response.status_code, 200)
         trial_balance_data: list[TrialBalanceEntry] = context[
