@@ -402,38 +402,52 @@ class TrialBalanceView(View):
     template_name = "ledger/trial_balance_partial.html"
 
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """GETリクエストハンドラ。
+        Args:
+            request (HttpRequest): HTTPリクエストオブジェクト
+
+        Returns:
+            HttpResponse: HTTPレスポンスオブジェクト
+        """
         year = int(request.GET.get("year"))
         output_format = request.GET.get("format", "html")
-        # data = self.get_data(year, output_format)
-        account_totals, total_debits, total_credits = self.get_data(year)
+        trial_balance_data, total_debits, total_credits = self.get_data(year)
         if output_format == "xlsx":
-            data = self._form_to_xlsx_rows(account_totals, total_debits, total_credits)
+            data = self._form_to_xlsx_rows(trial_balance_data, total_debits, total_credits)
             return self._export_as_xlsx(data, year)
         
         data = self._form_to_html_rows(
-            account_totals, year, total_debits, total_credits
+            trial_balance_data, year, total_debits, total_credits
         )
         return self._export_as_html(request, self.template_name, data)
 
-    def get_data(self, year: int) -> dict:
+    def get_data(self, year: int) -> tuple[list[TrialBalanceEntry], Decimal, Decimal]:
+        """指定された年度の試算表データを取得するユーティリティメソッド。
+        Args:
+            year (int): 対象年度
+        Returns:
+            tuple[list[TrialBalanceEntry], Decimal, Decimal]: 試算表データ、借方合計、貸方合計
+        """
 
         fiscal_range: DayRange = get_fiscal_range(year)
         account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
         total_debits, total_credits = self._get_total_debits_credits(account_totals)
+        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(account_totals)
 
-        return account_totals, total_debits, total_credits
-
-        if output_format == "xlsx":
-            return self._form_to_xlsx_rows(account_totals, total_debits, total_credits)
-
-        return self._form_to_html_rows(
-            account_totals, year, total_debits, total_credits
-        )
+        return trial_balance_data, total_debits, total_credits
     
     def _export_as_html(self, request: HttpRequest, template_name: str, context: dict) -> HttpResponse:
         return render(request, template_name, context)
 
     def _export_as_xlsx(self, insert_data: list[list], year: int) -> HttpResponse:
+        """指定されたデータをExcel形式でエクスポートするユーティリティメソッド。
+        Args:
+            insert_data (list[list]): Excelに書き込むデータのリスト
+            year (int): 対象年度
+
+        Returns:
+            HttpResponse: ExcelファイルのHTTPレスポンス
+        """
         def _write_header(ws):
             ws.append(["借方", "勘定科目", "貸方"])
 
@@ -459,10 +473,24 @@ class TrialBalanceView(View):
         self,
         account_totals: list[AccountTotal],
     ) -> list[TrialBalanceEntry]:
+        """
+        指定された勘定科目合計リストから試算表データを生成するユーティリティメソッド。
+        Args:
+            account_totals (list[AccountTotal]): 勘定科目合計のリスト
+
+        Returns:
+            list[TrialBalanceEntry]: 試算表データのリスト
+        """
         trial_balance_data: list[TrialBalanceEntry] = [TrialBalanceEntry(account_total.account_object.name, account_total.account_object.type, account_total.total_amount) for account_total in account_totals]
         return trial_balance_data
 
     def _get_account_total_rows(self, trial_balance_data: list[TrialBalanceEntry]) -> list[list]:
+        """試算表データからExcelに書き込む行データを生成するユーティリティメソッド。
+        Args:
+            trial_balance_data (list[TrialBalanceEntry]): 試算表データのリスト
+        Returns:
+            list[list]: Excelに書き込む行データのリスト
+        """
         insert_data = []
         for entry in trial_balance_data:
             if entry.type in ["asset", "expense"]:
@@ -476,6 +504,12 @@ class TrialBalanceView(View):
         self,
         account_totals: list[AccountTotal],
     ) -> tuple[Decimal, Decimal]:
+        """指定された勘定科目合計リストから借方・貸方合計を計算するユーティリティメソッド。
+        Args:
+            account_totals (list[AccountTotal]): 勘定科目合計のリスト
+        Returns:
+            tuple[Decimal, Decimal]: 借方合計、貸方合計
+        """
         total_debits = Decimal("0.00")
         total_credits = Decimal("0.00")
         for account_total in account_totals:
@@ -488,15 +522,20 @@ class TrialBalanceView(View):
 
     def _form_to_html_rows(
         self,
-        account_totals: list[AccountTotal],
+        trial_balance_data: list[TrialBalanceEntry],
         year: int,
         total_debits: Decimal,
         total_credits: Decimal,
     ) -> dict:
-        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(
-            account_totals
-        )
-
+        """試算表データをHTML表示用のコンテキストデータに変換するユーティリティメソッド。
+        Args:
+            trial_balance_data (list[TrialBalanceEntry]): 試算表データのリスト
+            year (int): 対象年度
+            total_debits (Decimal): 借方合計
+            total_credits (Decimal): 貸方合計
+        Returns:
+            dict: HTML表示用のコンテキストデータ
+        """
         data = {
             "total_debits": total_debits,
             "total_credits": total_credits,
@@ -507,11 +546,16 @@ class TrialBalanceView(View):
         return data
 
     def _form_to_xlsx_rows(
-        self, account_totals: list[AccountTotal], total_debits: Decimal, total_credits: Decimal
+        self, trial_balance_data: list[TrialBalanceEntry], total_debits: Decimal, total_credits: Decimal
     ) -> list[list]:
-        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(
-            account_totals
-        )
+        """試算表データをExcel書き込み用の行データに変換するユーティリティメソッド。
+        Args:
+            trial_balance_data (list[TrialBalanceEntry]): 試算表データのリスト
+            total_debits (Decimal): 借方合計
+            total_credits (Decimal): 貸方合計
+        Returns:
+            list[list]: Excelに書き込む行データのリスト
+        """
         insert_data = self._get_account_total_rows(trial_balance_data)
         insert_data.append([total_debits, "合計", total_credits])
         return insert_data

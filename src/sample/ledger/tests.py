@@ -608,9 +608,9 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response: HttpResponse = TrialBalanceView.as_view()(request)
 
-        account_totals, total_debits, total_credits = self.view.get_data(year=2025)
+        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
         context = self.view._form_to_html_rows(
-            account_totals, 2025, total_debits, total_credits
+            trial_balance_data, 2025, total_debits, total_credits
         )
 
         self.assertEqual(response.status_code, 200)
@@ -650,9 +650,9 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        account_totals, total_debits, total_credits = self.view.get_data(year=2025)
+        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
         context = self.view._form_to_html_rows(
-            account_totals, 2025, total_debits, total_credits
+            trial_balance_data, 2025, total_debits, total_credits
         )
 
         self.assertEqual(response.status_code, 200)
@@ -692,9 +692,9 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        account_totals, total_debits, total_credits = self.view.get_data(year=2025)
+        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
         context = self.view._form_to_html_rows(
-            account_totals, 2025, total_debits, total_credits
+            trial_balance_data, 2025, total_debits, total_credits
         )
 
         self.assertEqual(response.status_code, 200)
@@ -722,9 +722,9 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        account_totals, total_debits, total_credits = self.view.get_data(year=2025)
+        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
         context = self.view._form_to_html_rows(
-            account_totals, 2025, total_debits, total_credits
+            trial_balance_data, 2025, total_debits, total_credits
         )
 
         self.assertEqual(response.status_code, 200)
