@@ -401,28 +401,36 @@ class TrialBalanceView(TemplateView):
     template_name = "ledger/trial_balance_partial.html"
 
     def get_context_data(self, **kwargs):
+        def _get_trial_balance_data(account_totals: list[AccountTotal]) -> list[TrialBalanceEntry]:
+            trial_balance_data: list[TrialBalanceEntry] = []
+            for account_total in account_totals:
+                trial_balance_data_entry = TrialBalanceEntry(
+                    name=account_total.account_object.name,
+                    type=account_total.account_object.type,
+                    total=account_total.total_amount,
+                )
+                trial_balance_data.append(trial_balance_data_entry)
+            return trial_balance_data
+
+        def _get_total_debits_credits(account_totals: list[AccountTotal]) -> tuple[Decimal, Decimal]:
+            total_debits = Decimal("0.00")
+            total_credits = Decimal("0.00")
+            for account_total in account_totals:
+                account = account_total.account_object
+                if account.type in ['asset', 'expense']:
+                    total_debits += account_total.total_amount
+                else:
+                    total_credits += account_total.total_amount
+            return total_debits, total_credits
+
         context = super().get_context_data(**kwargs)
         # HACK: excel出力時と同じロジックなので共通化したい
         year = int(self.request.GET.get("year"))
         fiscal_range: DayRange = get_fiscal_range(year)
         account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+        total_debits, total_credits = _get_total_debits_credits(account_totals)
 
-        # 全勘定科目を取得
-        trial_balance_data: list[TrialBalanceEntry] = []
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
-        for account_total in account_totals:
-            trial_balance_data_entry = TrialBalanceEntry(
-                name=account_total.account_object.name,
-                type=account_total.account_object.type,
-                total=account_total.total_amount,
-            )
-            trial_balance_data.append(trial_balance_data_entry)
-
-            if account_total.account_object.type in ["asset", "expense"]:
-                total_debits += account_total.total_amount
-            else:
-                total_credits += account_total.total_amount
+        trial_balance_data: list[TrialBalanceEntry] = _get_trial_balance_data(account_totals)
 
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
@@ -467,7 +475,7 @@ class ExportTrialBalanceView(View):
         def _write_to_worksheet(insert_data: list[list], ws):
             for row in insert_data:
                 ws.append(row)
-        
+
         wb = Workbook()
         ws = wb.active
         _write_header(ws)
@@ -475,11 +483,10 @@ class ExportTrialBalanceView(View):
         year = _parse_year()
         fiscal_range: DayRange = get_fiscal_range(year)
         account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+        total_debits, total_credits = _get_total_debits_credits(account_totals)
 
         insert_data = _get_account_total_rows(fiscal_range)
-        total_debits, total_credits = _get_total_debits_credits(account_totals)
         insert_data.append([total_debits, "合計", total_credits])
-
         _write_to_worksheet(insert_data, ws)
 
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
