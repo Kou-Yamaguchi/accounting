@@ -439,26 +439,28 @@ class ExportTrialBalanceView(View):
         def _parse_year():
             return int(request.GET.get("year"))
 
-        def _get_account_total_rows(accounts: list[Account], fiscal_range: DayRange) -> list[list]:
+        def _get_account_total_rows(fiscal_range: DayRange) -> list[list]:
             insert_data = []
-            for account in accounts:
-                total = calculate_account_total(account, fiscal_range)
+            account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+            for account_total in account_totals:
+                account = account_total.account_object
                 if account.type in ['asset', 'expense']:
-                    insert_data.append([total, account.name, ""])
+                    insert_data.append([account_total.total_amount, account.name, ""])
                 else:
-                    insert_data.append(["", account.name, total])
+                    insert_data.append(["", account.name, account_total.total_amount])
 
             return insert_data
 
         def _get_total_debits_credits():
             total_debits = Decimal("0.00")
             total_credits = Decimal("0.00")
-            for account in accounts:
-                total = calculate_account_total(account, fiscal_range)
+            account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+            for account_total in account_totals:
+                account = account_total.account_object
                 if account.type in ['asset', 'expense']:
-                    total_debits += total
+                    total_debits += account_total.total_amount
                 else:
-                    total_credits += total
+                    total_credits += account_total.total_amount
             return total_debits, total_credits
 
         def _write_header(ws):
@@ -476,9 +478,7 @@ class ExportTrialBalanceView(View):
         year = _parse_year()
         fiscal_range: DayRange = get_fiscal_range(year)
 
-        accounts: list[Account] = get_all_account_objects()
-
-        insert_data = _get_account_total_rows(accounts, fiscal_range)
+        insert_data = _get_account_total_rows(fiscal_range)
         total_debits, total_credits = _get_total_debits_credits()
         insert_data.append([total_debits, "合計", total_credits])
 
