@@ -802,27 +802,21 @@ class BalanceSheetViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts = self.view.get_data(2024)
-        context = {
-            "year": 2024,
-            "balance_sheet_data": balance_sheet_data,
-            "total_debits": total_debits,
-            "total_credits": total_credits,
-        }
+        data_dict = self.view.get_data(2024)
 
         # 資産勘定が含まれていることを確認
-        asset_accounts = debit_accounts
+        asset_accounts = data_dict["debit_accounts"]
         asset_names = {item.name for item in asset_accounts}
         self.assertIn("現金", asset_names)
         self.assertIn("売掛金", asset_names)
 
         # 負債勘定が含まれていることを確認
-        liability_accounts = credit_accounts
+        liability_accounts = data_dict["credit_accounts"]
         liability_names = {item.name for item in liability_accounts}
         self.assertIn("買掛金", liability_names)
 
         # 純資産勘定が含まれていることを確認
-        equity_accounts = credit_accounts
+        equity_accounts = data_dict["credit_accounts"]
         equity_names = {item.name for item in equity_accounts}
         self.assertIn("資本金", equity_names)
 
@@ -852,17 +846,17 @@ class BalanceSheetViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts = self.view.get_data(2024)
+        data_dict = self.view.get_data(2024)
 
         # 現金の残高を確認 (100000 - 5000 = 95000)
-        asset_accounts = debit_accounts
+        asset_accounts = data_dict["debit_accounts"]
         cash_balance = next(
             item.total for item in asset_accounts if item.name == "現金"
         )
         self.assertEqual(cash_balance, Decimal("95000.00"))
 
         # 資本金の残高を確認
-        equity_accounts = credit_accounts
+        equity_accounts = data_dict["credit_accounts"]
         capital_balance = next(
             item.total
             for item in equity_accounts
@@ -897,16 +891,14 @@ class BalanceSheetViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts = self.view.get_data(2024)
-
-        total_debits = total_debits
-        total_credits = total_credits
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
 
         # 資産合計を確認 (現金100000)
-        self.assertEqual(total_debits, Decimal("100000.00"))
+        self.assertEqual(context["total_debits"], Decimal("100000.00"))
 
         # 負債+純資産合計を確認 (買掛金30000 + 資本金100000)
-        self.assertEqual(total_credits, Decimal("130000.00"))
+        self.assertEqual(context["total_credits"], Decimal("130000.00"))
 
     def test_balance_sheet_no_transactions(self):
         """
@@ -915,10 +907,10 @@ class BalanceSheetViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2025"}
         self.view.request = request
-        balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts = self.view.get_data(2025)
+        data_dict = self.view.get_data(2025)
 
         # 全ての勘定科目の残高が0であることを確認
-        for item in balance_sheet_data:
+        for item in data_dict["debit_accounts"] + data_dict["credit_accounts"]:
             self.assertEqual(item.total, Decimal("0.00"))
 
     def test_balance_sheet_paired_columns(self):
@@ -936,11 +928,11 @@ class BalanceSheetViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2025"}
         self.view.request = request
-        balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts = self.view.get_data(2025)
-        paired_columns = self.view.get_transpose_columns(debit_accounts, credit_accounts)
-
+        data_dict = self.view.get_data(2025)
+        context = self.view.build_context(2025, data_dict)
+        paired_columns = context["paired_columns"]
         # # paired_columnsが存在することを確認
-        # self.assertIsNotNone(paired_columns)
+        self.assertIsNotNone(paired_columns)
 
         # paired_columnsが正しい構造であることを確認
         self.assertIsInstance(paired_columns, list)
@@ -1008,22 +1000,15 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2025"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2025)
-        context = {
-            "year": 2025,
-            "profit_data": profit_data,
-            "loss_data": loss_data,
-            "total_revenue": total_revenue,
-            "total_expense": total_expense,
-        }
+        data_dict = self.view.get_data(2025)
 
         # 収益勘定が含まれていることを確認
-        revenue_accounts = context["profit_data"]
+        revenue_accounts = data_dict["credit_accounts"]
         revenue_names = {item.name for item in revenue_accounts}
         self.assertIn("売上", revenue_names)
 
         # 費用勘定が含まれていることを確認
-        expense_accounts = context["loss_data"]
+        expense_accounts = data_dict["debit_accounts"]
         expense_names = {item.name for item in expense_accounts}
         self.assertIn("仕入", expense_names)
         self.assertIn("消耗品費", expense_names)
@@ -1055,17 +1040,10 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2024)
-        context = {
-            "year": 2024,
-            "profit_data": profit_data,
-            "loss_data": loss_data,
-            "total_revenue": total_revenue,
-            "total_expense": total_expense,
-        }
+        data_dict = self.view.get_data(2024)
 
         # 売上の残高を確認 (50000 + 30000 = 80000)
-        revenue_accounts = context["profit_data"]
+        revenue_accounts = data_dict["credit_accounts"]
         sales_balance = next(
             item.total
             for item in revenue_accounts
@@ -1074,7 +1052,7 @@ class ProfitAndLossViewTest(TestCase):
         self.assertEqual(sales_balance, Decimal("80000.00"))
 
         # 仕入の残高を確認
-        expense_accounts = context["loss_data"]
+        expense_accounts = data_dict["debit_accounts"]
         purchase_balance = next(
             item.total
             for item in expense_accounts
@@ -1109,17 +1087,11 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2024)
-        context = {
-            "year": 2024,
-            "profit_data": profit_data,
-            "loss_data": loss_data,
-            "total_revenue": total_revenue,
-            "total_expense": total_expense,
-        }
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
 
-        total_revenue = context["total_revenue"]
-        total_expense = context["total_expense"]
+        total_revenue = context["total_credits"]
+        total_expense = context["total_debits"]
 
         # 収益合計を確認
         self.assertEqual(total_revenue, Decimal("100000.00"))
@@ -1148,15 +1120,8 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2024)
-        context = {
-            "year": 2024,
-            "profit_data": profit_data,
-            "loss_data": loss_data,
-            "total_revenue": total_revenue,
-            "total_expense": total_expense,
-        }
-        self.view.add_net_income_or_loss_to_context(context, total_revenue, total_expense)
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
 
         # 当期純利益を確認 (100000 - 60000 = 40000)
         self.assertIn("net_income", context)
@@ -1184,15 +1149,8 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2024"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2024)
-        context = {
-            "year": 2024,
-            "profit_data": profit_data,
-            "loss_data": loss_data,
-            "total_revenue": total_revenue,
-            "total_expense": total_expense,
-        }
-        self.view.add_net_income_or_loss_to_context(context, total_revenue, total_expense)
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
 
         # 当期純損失を確認 (50000 - 30000 = 20000)
         self.assertIn("net_loss", context)
@@ -1206,19 +1164,13 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2025"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2025)
-        context = {
-            "year": 2025,
-            "profit_data": profit_data,
-            "loss_data": loss_data,
-            "total_revenue": total_revenue,
-            "total_expense": total_expense,
-        }
+        data_dict = self.view.get_data(2025)
+        context = self.view.build_context(2025, data_dict)
 
         # 全ての勘定科目の残高が0であることを確認
-        for data in profit_data:
+        for data in context["profit_data"]:
             self.assertEqual(data.total, Decimal("0.00"))
-        for data in loss_data:
+        for data in context["loss_data"]:
             self.assertEqual(data.total, Decimal("0.00"))
 
         # 収益・費用合計が0であることを確認
@@ -1246,8 +1198,8 @@ class ProfitAndLossViewTest(TestCase):
         request = self.factory.get(self.url)
         request.GET = {"year": "2025"}
         self.view.request = request
-        profit_data, loss_data, total_revenue, total_expense = self.view.get_data(2025)
-        context = {"paired_columns": self.view.get_transpose_columns(profit_data, loss_data)}
+        data_dict = self.view.get_data(2025)
+        context = self.view.build_context(2025, data_dict)
 
         # paired_columnsが存在することを確認
         self.assertIn("paired_columns", context)
