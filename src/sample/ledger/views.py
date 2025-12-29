@@ -748,25 +748,6 @@ class TrialBalanceView(FinancialStatementView):
         """
         return f"trial_balance_{year}.xlsx"
 
-    # 後方互換性のためのメソッド
-    # def get_data(self, year: int) -> tuple[list[TrialBalanceEntry], Decimal, Decimal]:
-    #     """指定された年度の試算表データを取得するユーティリティメソッド。
-
-    #     注意: このメソッドは後方互換性のために残されています。
-    #     新しいコードではスーパークラスのget_dataメソッドを使用してください。
-
-    #     Args:
-    #         year (int): 対象年度
-    #     Returns:
-    #         tuple[list[TrialBalanceEntry], Decimal, Decimal]: 試算表データ、借方合計、貸方合計
-    #     """
-    #     data_dict = super().get_data(year)
-    #     return (
-    #         data_dict["entries"],
-    #         data_dict["total_debits"],
-    #         data_dict["total_credits"],
-    #     )
-
     def _form_to_html_rows(
         self,
         trial_balance_data: list[TrialBalanceEntry],
