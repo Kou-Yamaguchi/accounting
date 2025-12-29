@@ -42,6 +42,18 @@ def get_all_account_objects() -> list[Account]:
     return list(Account.objects.all().order_by("type", "name"))
 
 
+def get_account_object_by_type(account_type: str) -> list[Account]:
+    """指定されたタイプの勘定科目オブジェクトを取得するユーティリティ関数。
+
+    Args:
+        account_type (str): 勘定科目タイプ（例："asset", "liability", "equity", "revenue", "expense"）
+
+    Returns:
+        list[Account]: 指定されたタイプのAccountオブジェクトのリスト
+    """
+    return list(Account.objects.filter(type=account_type).order_by("name"))
+
+
 @dataclass
 class AccountTotal:
     account_object: Account
