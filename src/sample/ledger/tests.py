@@ -610,11 +610,10 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response: HttpResponse = TrialBalanceView.as_view()(request)
 
-        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
-        context = self.view._form_to_html_rows(
-            trial_balance_data, 2025, total_debits, total_credits
-        )
+        self.view = TrialBalanceView()
 
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
         self.assertEqual(response.status_code, 200)
 
         # 全ての勘定科目がresponseに含まれていることを確認
@@ -650,10 +649,8 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
-        context = self.view._form_to_html_rows(
-            trial_balance_data, 2025, total_debits, total_credits
-        )
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
 
         self.assertEqual(response.status_code, 200)
         trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
@@ -690,10 +687,8 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
-        context = self.view._form_to_html_rows(
-            trial_balance_data, 2025, total_debits, total_credits
-        )
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
 
         self.assertEqual(response.status_code, 200)
         trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
@@ -718,10 +713,8 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        trial_balance_data, total_debits, total_credits = self.view.get_data(year=2025)
-        context = self.view._form_to_html_rows(
-            trial_balance_data, 2025, total_debits, total_credits
-        )
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
 
         self.assertEqual(response.status_code, 200)
         trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
