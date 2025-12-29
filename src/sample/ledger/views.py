@@ -61,20 +61,22 @@ class AccountWithTotal:
     total_amount: Decimal
 
 
-def calc_all_account_totals(fiscal_range: DayRange) -> list[AccountWithTotal]:
+def calc_each_account_totals(fiscal_range: DayRange, pop_list: list[str] = None) -> list[AccountWithTotal]:
     """全ての勘定科目の合計金額を計算するユーティリティ関数。
 
     Args:
         fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+        pop_list (list[str]|None): 対象とする勘定科目タイプのリスト。デフォルトはNone（全ての勘定科目を対象）
 
     Returns:
         list[AccountWithTotal]: List of AccountWithTotal instances
     """
-    account_totals: list[AccountWithTotal] = []
-    accounts = get_all_account_objects()
-    for account in accounts:
-        total = calculate_account_total(account, fiscal_range)
-        account_totals.append(AccountWithTotal(account, total))
+    if pop_list is None:
+        accounts = get_all_account_objects()
+    else:
+        accounts = [acc for acc in get_all_account_objects() if acc.type in pop_list]
+
+    account_totals: list[AccountWithTotal] = [AccountWithTotal(account, calculate_account_total(account, fiscal_range)) for account in accounts]
     return account_totals
 
 
@@ -460,7 +462,7 @@ class TrialBalanceView(View):
         """
 
         fiscal_range: DayRange = get_fiscal_range(year)
-        account_totals: list[AccountWithTotal] = calc_all_account_totals(fiscal_range)
+        account_totals: list[AccountWithTotal] = calc_each_account_totals(fiscal_range)
         total_debits, total_credits = self._get_total_debits_credits(account_totals)
         trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(
             account_totals
@@ -608,10 +610,65 @@ class TrialBalanceView(View):
         return insert_data
 
 
+@dataclass
+class BalanceSheetEntry:
+    name: str
+    type: str
+    total: Decimal
+
+
 class BalanceSheetView(TemplateView):
     """貸借対照表ビュー"""
 
     template_name = "ledger/balance_sheet_table.html"
+
+    def get_data(self, year: int) -> tuple[list[BalanceSheetEntry], Decimal, Decimal]:
+        """指定された年度の貸借対照表データを取得するユーティリティメソッド。
+        Args:
+            year (int): 対象年度
+        Returns:
+            tuple[list[BalanceSheetEntry], Decimal, Decimal]: 貸借対照表データ、借方合計、貸方合計
+        """
+
+        fiscal_range: DayRange = get_fiscal_range(year)
+        account_totals: list[AccountWithTotal] = calc_each_account_totals(
+            fiscal_range, ["asset", "liability", "equity"]
+        )
+        total_debits, total_credits = self._get_total_debits_credits(account_totals)
+        balance_sheet_data: list[BalanceSheetEntry] = self._get_balance_sheet_data(
+            account_totals
+        )
+
+        return balance_sheet_data, total_debits, total_credits
+
+    def _get_balance_sheet_data(
+        self,
+        account_totals: list[AccountWithTotal],
+    ) -> list[BalanceSheetEntry]:
+        """
+        指定された勘定科目合計リストから貸借対照表データを生成するユーティリティメソッド。
+        Args:
+            account_totals (list[AccountWithTotal]): 勘定科目合計のリスト
+
+        Returns:
+            list[BalanceSheetEntry]: 貸借対照表データのリスト
+        """
+        balance_sheet_data: list[BalanceSheetEntry] = [
+            BalanceSheetEntry(
+                account_total.account_object.name,
+                account_total.account_object.type,
+                account_total.total_amount,
+            )
+            for account_total in account_totals
+        ]
+        return balance_sheet_data
+
+    def _get_total_debits_credits(
+        self, debit_accounts, credit_accounts
+    ) -> tuple[Decimal, Decimal]:
+        total_debits = sum(item["balance"] for item in debit_accounts)
+        total_credits = sum(item["balance"] for item in credit_accounts)
+        return total_debits, total_credits
 
     def get_context_data(self, **kwargs):
 
@@ -627,14 +684,6 @@ class BalanceSheetView(TemplateView):
             ]
             return transposed
 
-        def _get_total_debits_credits() -> tuple[Decimal, Decimal]:
-            total_debits = sum(item["balance"] for item in context["asset_accounts"])
-            total_credits = sum(
-                item["balance"]
-                for item in context["liability_accounts"] + context["equity_accounts"]
-            )
-            return total_debits, total_credits
-
         context = super().get_context_data(**kwargs)
         # 貸借対照表のデータ取得ロジックをここに実装
         year = int(self.request.GET.get("year", datetime.now().year))
@@ -648,7 +697,7 @@ class BalanceSheetView(TemplateView):
 
             context[f"{account_type}_accounts"] = account_data
 
-        total_debits, total_credits = _get_total_debits_credits()
+        total_debits, total_credits = self._get_total_debits_credits(context["asset_accounts"], context["liability_accounts"] + context["equity_accounts"])
 
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
