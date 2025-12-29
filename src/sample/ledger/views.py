@@ -37,6 +37,7 @@ from ledger.services import (
 )
 from enums.error_messages import ErrorMessages
 
+
 def get_all_account_objects() -> list[Account]:
     """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
     return list(Account.objects.all().order_by("type", "name"))
@@ -55,25 +56,25 @@ def get_account_object_by_type(account_type: str) -> list[Account]:
 
 
 @dataclass
-class AccountTotal:
+class AccountWithTotal:
     account_object: Account
     total_amount: Decimal
 
 
-def calc_all_account_totals(fiscal_range: DayRange) -> list[AccountTotal]:
+def calc_all_account_totals(fiscal_range: DayRange) -> list[AccountWithTotal]:
     """全ての勘定科目の合計金額を計算するユーティリティ関数。
 
     Args:
         fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
-        list[AccountTotal]: List of AccountTotal instances
+        list[AccountWithTotal]: List of AccountWithTotal instances
     """
-    account_totals: list[AccountTotal] = []
+    account_totals: list[AccountWithTotal] = []
     accounts = get_all_account_objects()
     for account in accounts:
         total = calculate_account_total(account, fiscal_range)
-        account_totals.append(AccountTotal(account, total))
+        account_totals.append(AccountWithTotal(account, total))
     return account_totals
 
 
@@ -242,6 +243,7 @@ class JournalEntryDeleteView(DeleteView):
 
 class LedgerSelectView(TemplateView):
     """帳票選択ビュー"""
+
     template_name = "ledger/ledger_select.html"
 
 
@@ -251,9 +253,13 @@ class GeneralLedgerView(TemplateView):
     URL: /ledger/general_ledger/<str:account_name>/
     """
 
-    template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
+    template_name = (
+        "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
+    )
 
-    def _get_all_journal_entries_for_account(self, account: Account) -> list[JournalEntry]:
+    def _get_all_journal_entries_for_account(
+        self, account: Account
+    ) -> list[JournalEntry]:
         """
         指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
         N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
@@ -285,7 +291,9 @@ class GeneralLedgerView(TemplateView):
         )
         return journal_entries
 
-    def _collect_account_set_from_je(self, je: JournalEntry, is_debit: bool) -> set[Account]:
+    def _collect_account_set_from_je(
+        self, je: JournalEntry, is_debit: bool
+    ) -> set[Account]:
         """
         取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
         """
@@ -316,7 +324,9 @@ class GeneralLedgerView(TemplateView):
             counter_party_name = "取引エラー"
         return counter_party_name
 
-    def _get_entry_record(self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str) -> dict:
+    def _get_entry_record(
+        self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str
+    ) -> dict:
         """
         総勘定元帳の1行分のレコードを作成するユーティリティメソッド。
 
@@ -357,15 +367,21 @@ class GeneralLedgerView(TemplateView):
         context["account"] = account
         target_account_id: int = account.id
 
-        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(account)
+        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(
+            account
+        )
 
         ledger_entries = []
         running_balance = Decimal("0.00")
 
         for je in journal_entries:
             # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits: set[Account] = self._collect_account_set_from_je(je, is_debit=True)
-            all_credits: set[Account] = self._collect_account_set_from_je(je, is_debit=False)
+            all_debits: set[Account] = self._collect_account_set_from_je(
+                je, is_debit=True
+            )
+            all_credits: set[Account] = self._collect_account_set_from_je(
+                je, is_debit=False
+            )
 
             # 当該勘定科目に関連する明細行を特定
             is_debit_entry = target_account_id in {acc.id for acc in all_debits}
@@ -380,8 +396,8 @@ class GeneralLedgerView(TemplateView):
 
             # 明細タイプによって借方・貸方金額を決定
 
-            entry_extract_running_balance, delta_running_balance = self._get_entry_record(
-                je, is_debit_entry, counter_party_name
+            entry_extract_running_balance, delta_running_balance = (
+                self._get_entry_record(je, is_debit_entry, counter_party_name)
             )
 
             running_balance += delta_running_balance
@@ -425,9 +441,11 @@ class TrialBalanceView(View):
         output_format = request.GET.get("format", "html")
         trial_balance_data, total_debits, total_credits = self.get_data(year)
         if output_format == "xlsx":
-            data = self._form_to_xlsx_rows(trial_balance_data, total_debits, total_credits)
+            data = self._form_to_xlsx_rows(
+                trial_balance_data, total_debits, total_credits
+            )
             return self._export_as_xlsx(data, year)
-        
+
         data = self._form_to_html_rows(
             trial_balance_data, year, total_debits, total_credits
         )
@@ -442,13 +460,17 @@ class TrialBalanceView(View):
         """
 
         fiscal_range: DayRange = get_fiscal_range(year)
-        account_totals: list[AccountTotal] = calc_all_account_totals(fiscal_range)
+        account_totals: list[AccountWithTotal] = calc_all_account_totals(fiscal_range)
         total_debits, total_credits = self._get_total_debits_credits(account_totals)
-        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(account_totals)
+        trial_balance_data: list[TrialBalanceEntry] = self._get_trial_balance_data(
+            account_totals
+        )
 
         return trial_balance_data, total_debits, total_credits
-    
-    def _export_as_html(self, request: HttpRequest, template_name: str, context: dict) -> HttpResponse:
+
+    def _export_as_html(
+        self, request: HttpRequest, template_name: str, context: dict
+    ) -> HttpResponse:
         return render(request, template_name, context)
 
     def _export_as_xlsx(self, insert_data: list[list], year: int) -> HttpResponse:
@@ -460,6 +482,7 @@ class TrialBalanceView(View):
         Returns:
             HttpResponse: ExcelファイルのHTTPレスポンス
         """
+
         def _write_header(ws):
             ws.append(["借方", "勘定科目", "貸方"])
 
@@ -483,20 +506,29 @@ class TrialBalanceView(View):
 
     def _get_trial_balance_data(
         self,
-        account_totals: list[AccountTotal],
+        account_totals: list[AccountWithTotal],
     ) -> list[TrialBalanceEntry]:
         """
         指定された勘定科目合計リストから試算表データを生成するユーティリティメソッド。
         Args:
-            account_totals (list[AccountTotal]): 勘定科目合計のリスト
+            account_totals (list[AccountWithTotal]): 勘定科目合計のリスト
 
         Returns:
             list[TrialBalanceEntry]: 試算表データのリスト
         """
-        trial_balance_data: list[TrialBalanceEntry] = [TrialBalanceEntry(account_total.account_object.name, account_total.account_object.type, account_total.total_amount) for account_total in account_totals]
+        trial_balance_data: list[TrialBalanceEntry] = [
+            TrialBalanceEntry(
+                account_total.account_object.name,
+                account_total.account_object.type,
+                account_total.total_amount,
+            )
+            for account_total in account_totals
+        ]
         return trial_balance_data
 
-    def _get_account_total_rows(self, trial_balance_data: list[TrialBalanceEntry]) -> list[list]:
+    def _get_account_total_rows(
+        self, trial_balance_data: list[TrialBalanceEntry]
+    ) -> list[list]:
         """試算表データからExcelに書き込む行データを生成するユーティリティメソッド。
         Args:
             trial_balance_data (list[TrialBalanceEntry]): 試算表データのリスト
@@ -514,11 +546,11 @@ class TrialBalanceView(View):
 
     def _get_total_debits_credits(
         self,
-        account_totals: list[AccountTotal],
+        account_totals: list[AccountWithTotal],
     ) -> tuple[Decimal, Decimal]:
         """指定された勘定科目合計リストから借方・貸方合計を計算するユーティリティメソッド。
         Args:
-            account_totals (list[AccountTotal]): 勘定科目合計のリスト
+            account_totals (list[AccountWithTotal]): 勘定科目合計のリスト
         Returns:
             tuple[Decimal, Decimal]: 借方合計、貸方合計
         """
@@ -558,7 +590,10 @@ class TrialBalanceView(View):
         return data
 
     def _form_to_xlsx_rows(
-        self, trial_balance_data: list[TrialBalanceEntry], total_debits: Decimal, total_credits: Decimal
+        self,
+        trial_balance_data: list[TrialBalanceEntry],
+        total_debits: Decimal,
+        total_credits: Decimal,
     ) -> list[list]:
         """試算表データをExcel書き込み用の行データに変換するユーティリティメソッド。
         Args:
@@ -575,38 +610,48 @@ class TrialBalanceView(View):
 
 class BalanceSheetView(TemplateView):
     """貸借対照表ビュー"""
+
     template_name = "ledger/balance_sheet_table.html"
 
     def get_context_data(self, **kwargs):
+
+        def _get_transpose_columns(debit_accounts, credit_accounts) -> list[tuple]:
+            """貸借対照表の表示用に列を転置するユーティリティメソッド。"""
+            transposed = [
+                (debit, credit)
+                for debit, credit in zip_longest(
+                    debit_accounts,
+                    credit_accounts,
+                    fillvalue=None,
+                )
+            ]
+            return transposed
+
+        def _get_total_debits_credits() -> tuple[Decimal, Decimal]:
+            total_debits = sum(item["balance"] for item in context["asset_accounts"])
+            total_credits = sum(
+                item["balance"]
+                for item in context["liability_accounts"] + context["equity_accounts"]
+            )
+            return total_debits, total_credits
+
         context = super().get_context_data(**kwargs)
         # 貸借対照表のデータ取得ロジックをここに実装
         year = int(self.request.GET.get("year", datetime.now().year))
         context["year"] = year
         fiscal_range: DayRange = get_fiscal_range(year)
 
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
-
-        for account_type in ['asset', 'liability', 'equity']:
+        for account_type in ["asset", "liability", "equity"]:
             accounts = Account.objects.filter(type=account_type).order_by("name")
-            account_data = []
-
-            for account in accounts:
-                total = calculate_account_total(account, fiscal_range)
-
-                account_data.append({
-                    "account": account,
-                    "type": account_type,
-                    "balance": total,
-                })
+            mid_accounts: list[AccountWithTotal] = [AccountWithTotal(account, calculate_account_total(account, fiscal_range)) for account in accounts]
+            account_data: list[dict] = [{ "account": at.account_object, "type": account_type, "balance": at.total_amount } for at in mid_accounts]
 
             context[f"{account_type}_accounts"] = account_data
 
-            total_debits += sum(item["balance"] for item in account_data if item["type"] == "asset")
-            total_credits += sum(item["balance"] for item in account_data if item["type"] in ["liability", "equity"])
+        total_debits, total_credits = _get_total_debits_credits()
+
         context["total_debits"] = total_debits
         context["total_credits"] = total_credits
-
 
         # HACK: 貸借差額を繰越利益剰余金or繰越欠損金を直接計算している
         # 本来は損益振替・資本振替をした決算整理仕訳を経由して反映させるべき
@@ -616,56 +661,51 @@ class BalanceSheetView(TemplateView):
             context["debfb"] = total_credits - total_debits
 
         # htmlのtableで貸借対照表を表示するための転置処理
-        debit_columns = context['asset_accounts']
-        credit_columns = context['liability_accounts'] + context['equity_accounts']
-
-        paired_columns = [(debit, credit) for debit, credit in zip_longest(debit_columns, credit_columns, fillvalue=None)]
-
-        context['paired_columns'] = paired_columns
+        context["paired_columns"] = _get_transpose_columns(
+            context["asset_accounts"],
+            context["liability_accounts"] + context["equity_accounts"],
+        )
 
         return context
 
 
-class ExportBalanceSheetView(View):
-    """貸借対照表エクスポートビュー"""
-    def get(self, request, *args, **kwargs):
-        # TODO: エクスポート処理の実装
-        pass
-
-
 class ProfitAndLossView(TemplateView):
     """損益計算書ビュー"""
+
     template_name = "ledger/profit_and_loss_table.html"
 
     def get_context_data(self, **kwargs):
+        def _get_transpose_columns(debit_accounts, credit_accounts) -> list[tuple]:
+            """損益計算書の表示用に列を転置するユーティリティメソッド。"""
+            transposed = [
+                (debit, credit)
+                for debit, credit in zip_longest(
+                    debit_accounts,
+                    credit_accounts,
+                    fillvalue=None,
+                )
+            ]
+            return transposed
+
+        def _get_total_revenue_expense() -> tuple[Decimal, Decimal]:
+            total_revenue = sum(item["balance"] for item in context["revenue_accounts"])
+            total_expense = sum(item["balance"] for item in context["expense_accounts"])
+            return total_revenue, total_expense
+
         context = super().get_context_data(**kwargs)
         # 損益計算書のデータ取得ロジックをここに実装
         year = int(self.request.GET.get("year", datetime.now().year))
         context["year"] = year
         fiscal_range: DayRange = get_fiscal_range(year)
 
-        total_revenue = Decimal("0.00")
-        total_expense = Decimal("0.00")
-
-        for account_type in ['revenue', 'expense']:
+        for account_type in ["revenue", "expense"]:
             accounts = Account.objects.filter(type=account_type).order_by("name")
-            account_data = []
-
-            for account in accounts:
-                total = calculate_account_total(account, fiscal_range)
-
-                account_data.append({
-                    "account": account,
-                    "type": account_type,
-                    "balance": total,
-                })
+            mid_accounts: list[AccountWithTotal] = [AccountWithTotal(account, calculate_account_total(account, fiscal_range)) for account in accounts]
+            account_data: list[dict] = [{ "account": at.account_object, "type": account_type, "balance": at.total_amount } for at in mid_accounts]
 
             context[f"{account_type}_accounts"] = account_data
 
-            if account_type == 'revenue':
-                total_revenue += sum(item["balance"] for item in account_data)
-            else:
-                total_expense += sum(item["balance"] for item in account_data)
+        total_revenue, total_expense = _get_total_revenue_expense()
 
         context["total_revenue"] = total_revenue
         context["total_expense"] = total_expense
@@ -678,26 +718,11 @@ class ProfitAndLossView(TemplateView):
             context["net_loss"] = total_expense - total_revenue
 
         # htmlのtableで貸借対照表を表示するための転置処理
-        debit_columns = context["expense_accounts"]
-        credit_columns = context["revenue_accounts"]
-
-        paired_columns = [
-            (debit, credit)
-            for debit, credit in zip_longest(
-                debit_columns, credit_columns, fillvalue=None
-            )
-        ]
-
-        context["paired_columns"] = paired_columns
+        context["paired_columns"] = _get_transpose_columns(
+            context["expense_accounts"], context["revenue_accounts"]
+        )
 
         return context
-
-
-class ExportProfitAndLossView(View):
-    """損益計算書エクスポートビュー"""
-    def get(self, request, *args, **kwargs):
-        # TODO: エクスポート処理の実装
-        pass
 
 
 class AbstractCashBookView(TemplateView):
@@ -723,9 +748,7 @@ class AbstractCashBookView(TemplateView):
 
     def get_context_data(self, **kwargs):
         if not self.TARGET_ACCOUNT_NAME:
-            raise ImproperlyConfigured(
-                ErrorMessages.MESSAGE_0002.value
-            )
+            raise ImproperlyConfigured(ErrorMessages.MESSAGE_0002.value)
 
         context = super().get_context_data(**kwargs)
         year, month = self._parse_year_month()
@@ -767,6 +790,7 @@ class PettyCashBookView(AbstractCashBookView):
 
 class PurchaseBookView(TemplateView):
     """仕入帳ビュー"""
+
     template_name = "ledger/purchase_book.html"
 
     def _parse_year_month(self):
@@ -967,6 +991,7 @@ class PurchaseBookView(TemplateView):
 
 class DashboardView(TemplateView):
     """ダッシュボードビュー"""
+
     template_name = "ledger/dashboard/page.html"
 
     PARTIALS = {
@@ -1000,7 +1025,9 @@ class DashboardView(TemplateView):
             return render(request, self.PARTIALS[partial], context)
         return super().get(request, *args, **kwargs)
 
-    def _get_sales_chart_data(self, span: int=6) -> tuple[list[str], list[int], list[int]]:
+    def _get_sales_chart_data(
+        self, span: int = 6
+    ) -> tuple[list[str], list[int], list[int]]:
         labels = [
             f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}"
             for i in range(span - 1, -1, -1)
