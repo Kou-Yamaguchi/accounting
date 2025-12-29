@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% load mathfilters %}
+{% load humanize %}
 
 {% block main %}
 
@@ -71,6 +73,14 @@
       font-size: 14px;
       margin-bottom: 12px;
     }
+
+    .profit {
+      color: green;
+    }
+
+    .loss {
+      color: red;
+    }
   </style>
 </head>
 <div class="container">
@@ -79,11 +89,16 @@
   <div class="kpi-grid">
     <div class="kpi-card">
       <div class="kpi-title">月次売上</div>
-      <div class="kpi-value">¥{{ monthly_sales }}</div>
+      <div class="kpi-value">¥{{ monthly_sales|intcomma }}</div>
     </div>
     <div class="kpi-card">
+      {% if monthly_profit >= 0 %}
       <div class="kpi-title">月次利益</div>
-      <div class="kpi-value">¥{{ monthly_profit }}</div>
+      <div class="kpi-value profit">¥{{ monthly_profit|intcomma }}</div>
+      {% else %}
+      <div class="kpi-title">月次損失</div>
+      <div class="kpi-value loss">¥{{ monthly_profit|abs|intcomma }}</div>
+      {% endif %}
     </div>
     <div class="kpi-card">
       <div class="kpi-title">税引前利益</div>

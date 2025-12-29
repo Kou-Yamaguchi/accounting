@@ -748,33 +748,6 @@ class TrialBalanceView(FinancialStatementView):
         """
         return f"trial_balance_{year}.xlsx"
 
-    def _form_to_html_rows(
-        self,
-        trial_balance_data: list[TrialBalanceEntry],
-        year: int,
-        total_debits: Decimal,
-        total_credits: Decimal,
-    ) -> dict:
-        """試算表データをHTML表示用のコンテキストデータに変換するユーティリティメソッド。
-
-        注意: このメソッドは後方互換性のために残されています。
-
-        Args:
-            trial_balance_data (list[TrialBalanceEntry]): 試算表データのリスト
-            year (int): 対象年度
-            total_debits (Decimal): 借方合計
-            total_credits (Decimal): 貸方合計
-        Returns:
-            dict: HTML表示用のコンテキストデータ
-        """
-        data = {
-            "total_debits": total_debits,
-            "total_credits": total_credits,
-            "year": year,
-            "trial_balance_data": trial_balance_data,
-        }
-        return data
-
 
 class BalanceSheetView(FinancialStatementView):
     """貸借対照表ビュー"""
