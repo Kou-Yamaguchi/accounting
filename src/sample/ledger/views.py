@@ -617,29 +617,91 @@ class BalanceSheetEntry:
     total: Decimal
 
 
-class BalanceSheetView(TemplateView):
+class BalanceSheetView(View):
     """貸借対照表ビュー"""
 
     template_name = "ledger/balance_sheet_table.html"
 
-    def get_data(self, year: int) -> tuple[list[BalanceSheetEntry], Decimal, Decimal]:
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """GETリクエストハンドラ。
+        Args:
+            request (HttpRequest): HTTPリクエストオブジェクト
+
+        Returns:
+            HttpResponse: HTTPレスポンスオブジェクト
+        """
+        # 貸借対照表のデータ取得ロジックをここに実装
+        year = int(request.GET.get("year", datetime.now().year))
+        balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts = self.get_data(year)
+        context = {
+            "year": year,
+            "balance_sheet_data": balance_sheet_data,
+            "total_debits": total_debits,
+            "total_credits": total_credits,
+        }
+
+        # HACK: 貸借差額を繰越利益剰余金or繰越欠損金を直接計算している
+        # 本来は損益振替・資本振替をした決算整理仕訳を経由して反映させるべき
+        if total_debits > total_credits:
+            context["rebf"] = total_debits - total_credits
+        else:
+            context["debfb"] = total_credits - total_debits
+
+        # htmlのtableで貸借対照表を表示するための転置処理
+        context["paired_columns"] = self.get_transpose_columns(
+            debit_accounts, credit_accounts
+        )
+
+        return render(request, self.template_name, context)
+
+    def get_data(self, year: int) -> tuple[list[BalanceSheetEntry], Decimal, Decimal, list[BalanceSheetEntry], list[BalanceSheetEntry]]:
         """指定された年度の貸借対照表データを取得するユーティリティメソッド。
         Args:
             year (int): 対象年度
         Returns:
-            tuple[list[BalanceSheetEntry], Decimal, Decimal]: 貸借対照表データ、借方合計、貸方合計
+            tuple[list[BalanceSheetEntry], Decimal, Decimal, list[BalanceSheetEntry], list[BalanceSheetEntry]]: 貸借対照表データ、借方合計、貸方合計、借方勘定科目リスト、貸方勘定科目リスト
         """
 
         fiscal_range: DayRange = get_fiscal_range(year)
         account_totals: list[AccountWithTotal] = calc_each_account_totals(
             fiscal_range, ["asset", "liability", "equity"]
         )
-        total_debits, total_credits = self._get_total_debits_credits(account_totals)
         balance_sheet_data: list[BalanceSheetEntry] = self._get_balance_sheet_data(
             account_totals
         )
 
-        return balance_sheet_data, total_debits, total_credits
+        dict_accounts: dict[str, list[BalanceSheetEntry]] = {}
+        for account_type in ["asset", "liability", "equity"]:
+            dict_accounts[account_type] = [
+                balance_sheet_data
+                for balance_sheet_data in balance_sheet_data
+                if balance_sheet_data.type == account_type
+            ]
+
+        debit_accounts: list[BalanceSheetEntry] = dict_accounts["asset"]
+        credit_accounts: list[BalanceSheetEntry] = (
+            dict_accounts["liability"] + dict_accounts["equity"]
+        )
+
+        total_debits, total_credits = self._get_total_debits_credits(debit_accounts, credit_accounts)
+
+        return balance_sheet_data, total_debits, total_credits, debit_accounts, credit_accounts
+
+    def get_transpose_columns(
+        self,
+        debit_accounts: list[BalanceSheetEntry],
+        credit_accounts: list[BalanceSheetEntry],
+    ) -> list[tuple]:
+        """貸借対照表の表示用に列を転置するユーティリティメソッド。"""
+        transposed = [
+            (debit, credit)
+            for debit, credit in zip_longest(
+                debit_accounts,
+                credit_accounts,
+                fillvalue=None,
+            )
+        ]
+        return transposed
 
     def _get_balance_sheet_data(
         self,
@@ -664,114 +726,157 @@ class BalanceSheetView(TemplateView):
         return balance_sheet_data
 
     def _get_total_debits_credits(
-        self, debit_accounts, credit_accounts
+        self, debit_accounts: list[BalanceSheetEntry], credit_accounts: list[BalanceSheetEntry]
     ) -> tuple[Decimal, Decimal]:
-        total_debits = sum(item["balance"] for item in debit_accounts)
-        total_credits = sum(item["balance"] for item in credit_accounts)
+        total_debits = sum(item.total for item in debit_accounts)
+        total_credits = sum(item.total for item in credit_accounts)
         return total_debits, total_credits
 
-    def get_context_data(self, **kwargs):
 
-        def _get_transpose_columns(debit_accounts, credit_accounts) -> list[tuple]:
-            """貸借対照表の表示用に列を転置するユーティリティメソッド。"""
-            transposed = [
-                (debit, credit)
-                for debit, credit in zip_longest(
-                    debit_accounts,
-                    credit_accounts,
-                    fillvalue=None,
-                )
-            ]
-            return transposed
-
-        context = super().get_context_data(**kwargs)
-        # 貸借対照表のデータ取得ロジックをここに実装
-        year = int(self.request.GET.get("year", datetime.now().year))
-        context["year"] = year
-        fiscal_range: DayRange = get_fiscal_range(year)
-
-        for account_type in ["asset", "liability", "equity"]:
-            accounts = Account.objects.filter(type=account_type).order_by("name")
-            mid_accounts: list[AccountWithTotal] = [AccountWithTotal(account, calculate_account_total(account, fiscal_range)) for account in accounts]
-            account_data: list[dict] = [{ "account": at.account_object, "type": account_type, "balance": at.total_amount } for at in mid_accounts]
-
-            context[f"{account_type}_accounts"] = account_data
-
-        total_debits, total_credits = self._get_total_debits_credits(context["asset_accounts"], context["liability_accounts"] + context["equity_accounts"])
-
-        context["total_debits"] = total_debits
-        context["total_credits"] = total_credits
-
-        # HACK: 貸借差額を繰越利益剰余金or繰越欠損金を直接計算している
-        # 本来は損益振替・資本振替をした決算整理仕訳を経由して反映させるべき
-        if total_debits > total_credits:
-            context["rebf"] = total_debits - total_credits
-        else:
-            context["debfb"] = total_credits - total_debits
-
-        # htmlのtableで貸借対照表を表示するための転置処理
-        context["paired_columns"] = _get_transpose_columns(
-            context["asset_accounts"],
-            context["liability_accounts"] + context["equity_accounts"],
-        )
-
-        return context
-
-
-class ProfitAndLossView(TemplateView):
+class ProfitAndLossView(View):
     """損益計算書ビュー"""
 
     template_name = "ledger/profit_and_loss_table.html"
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """GETリクエストハンドラ。
+        Args:
+            request (HttpRequest): HTTPリクエストオブジェクト
 
-    def get_context_data(self, **kwargs):
-        def _get_transpose_columns(debit_accounts, credit_accounts) -> list[tuple]:
-            """損益計算書の表示用に列を転置するユーティリティメソッド。"""
-            transposed = [
-                (debit, credit)
-                for debit, credit in zip_longest(
-                    debit_accounts,
-                    credit_accounts,
-                    fillvalue=None,
-                )
-            ]
-            return transposed
-
-        def _get_total_revenue_expense() -> tuple[Decimal, Decimal]:
-            total_revenue = sum(item["balance"] for item in context["revenue_accounts"])
-            total_expense = sum(item["balance"] for item in context["expense_accounts"])
-            return total_revenue, total_expense
-
-        context = super().get_context_data(**kwargs)
-        # 損益計算書のデータ取得ロジックをここに実装
-        year = int(self.request.GET.get("year", datetime.now().year))
-        context["year"] = year
-        fiscal_range: DayRange = get_fiscal_range(year)
-
-        for account_type in ["revenue", "expense"]:
-            accounts = Account.objects.filter(type=account_type).order_by("name")
-            mid_accounts: list[AccountWithTotal] = [AccountWithTotal(account, calculate_account_total(account, fiscal_range)) for account in accounts]
-            account_data: list[dict] = [{ "account": at.account_object, "type": account_type, "balance": at.total_amount } for at in mid_accounts]
-
-            context[f"{account_type}_accounts"] = account_data
-
-        total_revenue, total_expense = _get_total_revenue_expense()
-
-        context["total_revenue"] = total_revenue
-        context["total_expense"] = total_expense
+        Returns:
+            HttpResponse: HTTPレスポンスオブジェクト
+        """
+        year = int(request.GET.get("year", datetime.now().year))
+        profit_data, loss_data, total_revenue, total_expense = self.get_data(year)
+        context = {
+            "year": year,
+            "profit_data": profit_data,
+            "loss_data": loss_data,
+            "total_revenue": total_revenue,
+            "total_expense": total_expense,
+        }
 
         # HACK: 当期純利益・純損失を直接計算している
         # 本来は損益振替仕訳を経由して反映させるべき
-        if total_revenue >= total_expense:
-            context["net_income"] = total_revenue - total_expense
-        else:
-            context["net_loss"] = total_expense - total_revenue
-
+        self.add_net_income_or_loss_to_context(
+            context,
+            total_revenue,
+            total_expense,
+        )
         # htmlのtableで貸借対照表を表示するための転置処理
-        context["paired_columns"] = _get_transpose_columns(
-            context["expense_accounts"], context["revenue_accounts"]
+        context["paired_columns"] = self.get_transpose_columns(
+            loss_data, profit_data
         )
 
-        return context
+        return render(request, self.template_name, context)
+    
+    def calc_net_income_or_loss(self, total_revenue: Decimal, total_expense: Decimal) -> tuple[Decimal, Decimal]:
+        """当期純利益または純損失を計算するユーティリティメソッド。
+        Args:
+            total_revenue (Decimal): 総収益
+            total_expense (Decimal): 総費用
+        Returns:
+            tuple[Decimal, Decimal]: 当期純利益、当期純損失
+        """
+        if total_revenue >= total_expense:
+            net_income = total_revenue - total_expense
+            net_loss = Decimal("0.00")
+        else:
+            net_income = Decimal("0.00")
+            net_loss = total_expense - total_revenue
+        return net_income, net_loss
+    
+    def add_net_income_or_loss_to_context(
+        self,
+        context: dict,
+        total_revenue: Decimal,
+        total_expense: Decimal,
+    ) -> None:
+        """コンテキストに当期純利益または純損失を追加するユーティリティメソッド。
+        Args:
+            context (dict): コンテキストデータ
+            total_revenue (Decimal): 総収益
+            total_expense (Decimal): 総費用
+        """
+        net_income, net_loss = self.calc_net_income_or_loss(total_revenue, total_expense)
+        if net_income > Decimal("0.00"):
+            context["net_income"] = net_income
+        elif net_loss > Decimal("0.00"):
+            context["net_loss"] = net_loss
+
+    def get_data(self, year: int) -> tuple[list[BalanceSheetEntry], list[BalanceSheetEntry], Decimal, Decimal]:
+        """指定された年度の損益計算書データを取得するユーティリティメソッド。
+        Args:
+            year (int): 対象年度
+        Returns:
+            tuple[list[BalanceSheetEntry], list[BalanceSheetEntry], Decimal, Decimal]: 収益勘定データ、費用勘定データ、総収益、総費用
+        """
+        fiscal_range: DayRange = get_fiscal_range(year)
+        account_totals: list[AccountWithTotal] = calc_each_account_totals(
+            fiscal_range, ["revenue", "expense"]
+        )
+        datas: list[BalanceSheetEntry] = self._get_profit_and_loss_data(account_totals)
+
+        dict_accounts: dict[str, list[BalanceSheetEntry]] = {}
+        for account_type in ["revenue", "expense"]:
+            dict_accounts[account_type] = [
+                data
+                for data in datas
+                if data.type == account_type
+            ]
+
+        revenue_data: list[BalanceSheetEntry] = dict_accounts["revenue"]
+        expense_data: list[BalanceSheetEntry] = dict_accounts["expense"]
+
+        total_revenue, total_expense = self._get_total_debits_credits(revenue_data, expense_data)
+
+        return revenue_data, expense_data, total_revenue, total_expense
+
+    def _get_profit_and_loss_data(
+        self,
+        account_totals: list[AccountWithTotal],
+    ) -> list[BalanceSheetEntry]:
+        """
+        指定された勘定科目合計リストから損益計算書データを生成するユーティリティメソッド。
+        Args:
+            fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+
+        Returns:
+            list[BalanceSheetEntry]: 損益計算書データのリスト
+        """
+        profit_and_loss_data: list[BalanceSheetEntry] = [
+            BalanceSheetEntry(
+                account_total.account_object.name,
+                account_total.account_object.type,
+                account_total.total_amount,
+            )
+            for account_total in account_totals
+        ]
+        return profit_and_loss_data
+
+    def get_transpose_columns(
+        self,
+        debit_accounts: list[BalanceSheetEntry],
+        credit_accounts: list[BalanceSheetEntry],
+    ) -> list[tuple]:
+        """貸借対照表の表示用に列を転置するユーティリティメソッド。"""
+        transposed = [
+            (debit, credit)
+            for debit, credit in zip_longest(
+                debit_accounts,
+                credit_accounts,
+                fillvalue=None,
+            )
+        ]
+        return transposed
+
+    def _get_total_debits_credits(
+        self,
+        debit_accounts: list[BalanceSheetEntry],
+        credit_accounts: list[BalanceSheetEntry],
+    ) -> tuple[Decimal, Decimal]:
+        total_debits = sum(item.total for item in debit_accounts)
+        total_credits = sum(item.total for item in credit_accounts)
+        return total_debits, total_credits
 
 
 class AbstractCashBookView(TemplateView):
