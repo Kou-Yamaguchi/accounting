@@ -7,7 +7,7 @@ import json
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import F, Q, Value, CharField, Prefetch, Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpRequest
 from django.views.generic import (
     View,
     ListView,
@@ -28,6 +28,7 @@ from ledger.services import (
     list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
+    DayRange,
     calculate_account_total,
     calc_monthly_sales,
     calc_recent_half_year_sales,
@@ -35,6 +36,54 @@ from ledger.services import (
     calc_recent_half_year_profits,
 )
 from enums.error_messages import ErrorMessages
+
+
+def get_all_account_objects() -> list[Account]:
+    """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
+    return list(Account.objects.all().order_by("type", "name"))
+
+
+def get_account_object_by_type(account_type: str) -> list[Account]:
+    """指定されたタイプの勘定科目オブジェクトを取得するユーティリティ関数。
+
+    Args:
+        account_type (str): 勘定科目タイプ（例："asset", "liability", "equity", "revenue", "expense"）
+
+    Returns:
+        list[Account]: 指定されたタイプのAccountオブジェクトのリスト
+    """
+    return list(Account.objects.filter(type=account_type).order_by("name"))
+
+
+@dataclass
+class AccountWithTotal:
+    account_object: Account
+    total_amount: Decimal
+
+
+def calc_each_account_totals(
+    fiscal_range: DayRange, pop_list: list[str] = None
+) -> list[AccountWithTotal]:
+    """全ての勘定科目の合計金額を計算するユーティリティ関数。
+
+    Args:
+        fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+        pop_list (list[str]|None): 対象とする勘定科目タイプのリスト。デフォルトはNone（全ての勘定科目を対象）
+
+    Returns:
+        list[AccountWithTotal]: List of AccountWithTotal instances
+    """
+    if pop_list is None:
+        accounts = get_all_account_objects()
+    else:
+        accounts = [acc for acc in get_all_account_objects() if acc.type in pop_list]
+
+    account_totals: list[AccountWithTotal] = [
+        AccountWithTotal(account, calculate_account_total(account, fiscal_range))
+        for account in accounts
+    ]
+    return account_totals
+
 
 @dataclass
 class YearMonth:
@@ -201,6 +250,7 @@ class JournalEntryDeleteView(DeleteView):
 
 class LedgerSelectView(TemplateView):
     """帳票選択ビュー"""
+
     template_name = "ledger/ledger_select.html"
 
 
@@ -210,9 +260,13 @@ class GeneralLedgerView(TemplateView):
     URL: /ledger/general_ledger/<str:account_name>/
     """
 
-    template_name = "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
+    template_name = (
+        "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
+    )
 
-    def _get_all_journal_entries_for_account(self, account: Account) -> list[JournalEntry]:
+    def _get_all_journal_entries_for_account(
+        self, account: Account
+    ) -> list[JournalEntry]:
         """
         指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
         N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
@@ -244,7 +298,9 @@ class GeneralLedgerView(TemplateView):
         )
         return journal_entries
 
-    def _collect_account_set_from_je(self, je: JournalEntry, is_debit: bool) -> set[Account]:
+    def _collect_account_set_from_je(
+        self, je: JournalEntry, is_debit: bool
+    ) -> set[Account]:
         """
         取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
         """
@@ -275,7 +331,9 @@ class GeneralLedgerView(TemplateView):
             counter_party_name = "取引エラー"
         return counter_party_name
 
-    def _get_entry_record(self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str) -> dict:
+    def _get_entry_record(
+        self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str
+    ) -> dict:
         """
         総勘定元帳の1行分のレコードを作成するユーティリティメソッド。
 
@@ -316,15 +374,21 @@ class GeneralLedgerView(TemplateView):
         context["account"] = account
         target_account_id: int = account.id
 
-        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(account)
+        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(
+            account
+        )
 
         ledger_entries = []
         running_balance = Decimal("0.00")
 
         for je in journal_entries:
             # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits: set[Account] = self._collect_account_set_from_je(je, is_debit=True)
-            all_credits: set[Account] = self._collect_account_set_from_je(je, is_debit=False)
+            all_debits: set[Account] = self._collect_account_set_from_je(
+                je, is_debit=True
+            )
+            all_credits: set[Account] = self._collect_account_set_from_je(
+                je, is_debit=False
+            )
 
             # 当該勘定科目に関連する明細行を特定
             is_debit_entry = target_account_id in {acc.id for acc in all_debits}
@@ -339,8 +403,8 @@ class GeneralLedgerView(TemplateView):
 
             # 明細タイプによって借方・貸方金額を決定
 
-            entry_extract_running_balance, delta_running_balance = self._get_entry_record(
-                je, is_debit_entry, counter_party_name
+            entry_extract_running_balance, delta_running_balance = (
+                self._get_entry_record(je, is_debit_entry, counter_party_name)
             )
 
             running_balance += delta_running_balance
@@ -363,212 +427,472 @@ class TrialBalanceEntry:
     total: Decimal
 
 
-class TrialBalanceView(TemplateView):
+@dataclass
+class FinancialStatementEntry:
+    """財務諸表エントリの共通データクラス"""
+
+    name: str
+    type: str
+    total: Decimal
+
+# 後方互換性のためのエイリアス
+BalanceSheetEntry = FinancialStatementEntry
+
+
+class FinancialStatementView(View):
+    """財務諸表の共通処理を提供する抽象ビュー
+
+    サブクラスは以下の属性を設定する必要があります：
+    - template_name: テンプレートファイル名
+    - ACCOUNT_TYPES: 対象とする勘定科目タイプのリスト
+    - DEBIT_TYPES: 借方側の勘定タイプのリスト
+    - CREDIT_TYPES: 貸方側の勘定タイプのリスト
+    """
+
+    template_name = None
+    ACCOUNT_TYPES = []  # サブクラスで設定必須
+    DEBIT_TYPES = []  # サブクラスで設定必須
+    CREDIT_TYPES = []  # サブクラスで設定必須
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """GETリクエストハンドラ。
+        Args:
+            request (HttpRequest): HTTPリクエストオブジェクト
+
+        Returns:
+            HttpResponse: HTTPレスポンスオブジェクト
+        """
+        year = int(request.GET.get("year", datetime.now().year))
+        output_format = request.GET.get("format", "html")
+        data_dict = self.get_data(year)
+
+        if output_format == "xlsx":
+            return self._export_as_xlsx(data_dict, year)
+
+        context = self.build_context(year, data_dict)
+        return self._export_as_html(request, self.template_name, context)
+
+    def get_data(self, year: int) -> dict:
+        """指定された年度の財務諸表データを取得するユーティリティメソッド。
+
+        Args:
+            year (int): 対象年度
+
+        Returns:
+            dict: データ辞書（entries, debit_accounts, credit_accounts, total_debits, total_creditsを含む）
+        """
+        fiscal_range: DayRange = get_fiscal_range(year)
+        account_totals: list[AccountWithTotal] = calc_each_account_totals(
+            fiscal_range, self.ACCOUNT_TYPES
+        )
+        entries: list[FinancialStatementEntry] = self._create_entries(account_totals)
+
+        debit_accounts, credit_accounts = self._split_by_type(entries)
+        total_debits, total_credits = self._get_total_debits_credits(
+            debit_accounts, credit_accounts
+        )
+
+        return {
+            "entries": entries,
+            "debit_accounts": debit_accounts,
+            "credit_accounts": credit_accounts,
+            "total_debits": total_debits,
+            "total_credits": total_credits,
+        }
+
+    def build_context(self, year: int, data_dict: dict) -> dict:
+        """基本的なコンテキスト構築。サブクラスでオーバーライド可能。
+
+        Args:
+            year (int): 対象年度
+            data_dict (dict): get_dataから返されたデータ辞書
+
+        Returns:
+            dict: テンプレートに渡すコンテキストデータ
+        """
+        context = {
+            "year": year,
+            "total_debits": data_dict["total_debits"],
+            "total_credits": data_dict["total_credits"],
+            "paired_columns": self.get_transpose_columns(
+                data_dict["debit_accounts"], data_dict["credit_accounts"]
+            ),
+        }
+        # サブクラス固有の処理を追加
+        self.add_specific_context(context, data_dict)
+        return context
+
+    def add_specific_context(self, context: dict, data_dict: dict) -> None:
+        """サブクラス固有のコンテキスト追加。サブクラスで実装。
+
+        Args:
+            context (dict): コンテキストデータ（この関数内で直接変更される）
+            data_dict (dict): get_dataから返されたデータ辞書
+        """
+        pass
+
+    def _split_by_type(
+        self, entries: list[FinancialStatementEntry]
+    ) -> tuple[list[FinancialStatementEntry], list[FinancialStatementEntry]]:
+        """勘定タイプで借方・貸方に分割するユーティリティメソッド。
+
+        Args:
+            entries (list[FinancialStatementEntry]): 財務諸表エントリのリスト
+
+        Returns:
+            tuple: (借方勘定リスト, 貸方勘定リスト)
+        """
+        debit_accounts = [e for e in entries if e.type in self.DEBIT_TYPES]
+        credit_accounts = [e for e in entries if e.type in self.CREDIT_TYPES]
+        return debit_accounts, credit_accounts
+
+    def get_transpose_columns(
+        self,
+        debit_accounts: list[FinancialStatementEntry],
+        credit_accounts: list[FinancialStatementEntry],
+    ) -> list[tuple]:
+        """財務諸表の表示用に列を転置するユーティリティメソッド。
+
+        Args:
+            debit_accounts (list[FinancialStatementEntry]): 借方勘定リスト
+            credit_accounts (list[FinancialStatementEntry]): 貸方勘定リスト
+
+        Returns:
+            list[tuple]: 転置された列のリスト
+        """
+        transposed = [
+            (debit, credit)
+            for debit, credit in zip_longest(
+                debit_accounts,
+                credit_accounts,
+                fillvalue=None,
+            )
+        ]
+        return transposed
+
+    def _get_total_debits_credits(
+        self,
+        debit_accounts: list[FinancialStatementEntry],
+        credit_accounts: list[FinancialStatementEntry],
+    ) -> tuple[Decimal, Decimal]:
+        """借方・貸方合計を計算するユーティリティメソッド。
+
+        Args:
+            debit_accounts (list[FinancialStatementEntry]): 借方勘定リスト
+            credit_accounts (list[FinancialStatementEntry]): 貸方勘定リスト
+
+        Returns:
+            tuple[Decimal, Decimal]: (借方合計, 貸方合計)
+        """
+        total_debits = sum(item.total for item in debit_accounts)
+        total_credits = sum(item.total for item in credit_accounts)
+        return total_debits, total_credits
+
+    def _create_entries(
+        self, account_totals: list[AccountWithTotal]
+    ) -> list[FinancialStatementEntry]:
+        """勘定科目合計リストから財務諸表エントリを生成するユーティリティメソッド。
+
+        Args:
+            account_totals (list[AccountWithTotal]): 勘定科目合計のリスト
+
+        Returns:
+            list[FinancialStatementEntry]: 財務諸表エントリのリスト
+        """
+        return [
+            FinancialStatementEntry(
+                account_total.account_object.name,
+                account_total.account_object.type,
+                account_total.total_amount,
+            )
+            for account_total in account_totals
+        ]
+
+    def _export_as_html(
+        self, request: HttpRequest, template_name: str, context: dict
+    ) -> HttpResponse:
+        """HTML形式でエクスポートするユーティリティメソッド。
+
+        Args:
+            request (HttpRequest): HTTPリクエストオブジェクト
+            template_name (str): テンプレート名
+            context (dict): コンテキストデータ
+
+        Returns:
+            HttpResponse: HTMLレスポンス
+        """
+        return render(request, template_name, context)
+
+    def _export_as_xlsx(self, data_dict: dict, year: int) -> HttpResponse:
+        """Excel形式でエクスポートするユーティリティメソッド。
+
+        Args:
+            data_dict (dict): get_dataから返されたデータ辞書
+            year (int): 対象年度
+
+        Returns:
+            HttpResponse: ExcelファイルのHTTPレスポンス
+        """
+        insert_data = self._form_to_xlsx_rows(data_dict)
+
+        wb = Workbook()
+        ws = wb.active
+        self._write_xlsx_header(ws)
+        self._write_xlsx_data(ws, insert_data)
+
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        filename = self._get_xlsx_filename(year)
+        response["Content-Disposition"] = f"attachment; filename={filename}"
+        wb.save(response)
+        return response
+
+    def _write_xlsx_header(self, ws) -> None:
+        """Excelのヘッダー行を書き込むユーティリティメソッド。サブクラスでオーバーライド可能。
+
+        Args:
+            ws: ワークシートオブジェクト
+        """
+        ws.append(["借方", "勘定科目", "貸方"])
+
+    def _write_xlsx_data(self, ws, insert_data: list[list]) -> None:
+        """Excelにデータを書き込むユーティリティメソッド。
+
+        Args:
+            ws: ワークシートオブジェクト
+            insert_data (list[list]): 書き込むデータのリスト
+        """
+        for row in insert_data:
+            ws.append(row)
+
+    def _form_to_xlsx_rows(self, data_dict: dict) -> list[list]:
+        """データ辞書をExcel書き込み用の行データに変換するユーティリティメソッド。
+        サブクラスでオーバーライド可能。
+
+        Args:
+            data_dict (dict): get_dataから返されたデータ辞書
+
+        Returns:
+            list[list]: Excelに書き込む行データのリスト
+        """
+        insert_data = []
+        for entry in data_dict["entries"]:
+            if entry.type in self.DEBIT_TYPES:
+                insert_data.append([entry.total, entry.name, ""])
+            else:
+                insert_data.append(["", entry.name, entry.total])
+
+        # 合計行を追加
+        insert_data.append(
+            [data_dict["total_debits"], "合計", data_dict["total_credits"]]
+        )
+        return insert_data
+
+    def _get_xlsx_filename(self, year: int) -> str:
+        """Excelファイル名を生成するユーティリティメソッド。サブクラスでオーバーライド可能。
+
+        Args:
+            year (int): 対象年度
+
+        Returns:
+            str: ファイル名
+        """
+        # サブクラス名からファイル名を生成（例: BalanceSheetView -> balance_sheet）
+        class_name = self.__class__.__name__.replace("View", "")
+        # キャメルケースをスネークケースに変換
+        import re
+
+        filename_base = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
+        return f"{filename_base}_{year}.xlsx"
+
+
+class TrialBalanceView(FinancialStatementView):
     """
     試算表ビュー
     該当年度の試算表を表示する。
     URL: /ledger/trial_balance_by_year/
     """
+
     template_name = "ledger/trial_balance_partial.html"
+    ACCOUNT_TYPES = None  # 全ての勘定科目を対象
+    DEBIT_TYPES = ["asset", "expense"]
+    CREDIT_TYPES = ["liability", "equity", "revenue"]
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # HACK: excel出力時と同じロジックなので共通化したい
-        year = int(self.request.GET.get("year"))
+    def build_context(self, year: int, data_dict: dict) -> dict:
+        """試算表用のコンテキスト構築。
 
-        start_date, end_date = get_fiscal_range(year)
+        Args:
+            year (int): 対象年度
+            data_dict (dict): get_dataから返されたデータ辞書
 
-        # 全勘定科目を取得
-        accounts = Account.objects.all().order_by("type", "name")
-
-        trial_balance_data: list[TrialBalanceEntry] = []
-
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
-
-        for account in accounts:
-            total = calculate_account_total(account, start_date, end_date)
-
-            trial_balance_data_entry = TrialBalanceEntry(
-                name=account.name,
-                type=account.type,
-                total=total,
-            )
-
-            trial_balance_data.append(trial_balance_data_entry)
-
-            if account.type in ['asset', 'expense']:
-                total_debits += total
-            else:
-                total_credits += total
-        context["total_debits"] = total_debits
-        context["total_credits"] = total_credits
-        context["year"] = year
-        context["trial_balance_data"] = trial_balance_data
-
+        Returns:
+            dict: テンプレートに渡すコンテキストデータ
+        """
+        context = {
+            "total_debits": data_dict["total_debits"],
+            "total_credits": data_dict["total_credits"],
+            "year": year,
+            "trial_balance_data": data_dict["entries"],
+        }
         return context
 
+    def _get_xlsx_filename(self, year: int) -> str:
+        """Excelファイル名を生成するユーティリティメソッド。
 
-class ExportTrialBalanceView(View):
-    """試算表エクスポートビュー"""
-    def get(self, request, *args, **kwargs):
-        # TODO: エクスポート処理の実装
-        wb = Workbook()
-        ws = wb.active
+        Args:
+            year (int): 対象年度
 
-        ws.append(["借方", "勘定科目", "貸方"])
+        Returns:
+            str: ファイル名
+        """
+        return f"trial_balance_{year}.xlsx"
 
-        year = int(self.request.GET.get("year"))
-        start_date, end_date = get_fiscal_range(year)
+    # 後方互換性のためのメソッド
+    # def get_data(self, year: int) -> tuple[list[TrialBalanceEntry], Decimal, Decimal]:
+    #     """指定された年度の試算表データを取得するユーティリティメソッド。
 
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
+    #     注意: このメソッドは後方互換性のために残されています。
+    #     新しいコードではスーパークラスのget_dataメソッドを使用してください。
 
-        accounts = Account.objects.all().order_by("type", "name")
+    #     Args:
+    #         year (int): 対象年度
+    #     Returns:
+    #         tuple[list[TrialBalanceEntry], Decimal, Decimal]: 試算表データ、借方合計、貸方合計
+    #     """
+    #     data_dict = super().get_data(year)
+    #     return (
+    #         data_dict["entries"],
+    #         data_dict["total_debits"],
+    #         data_dict["total_credits"],
+    #     )
 
-        for account in accounts:
-            total = calculate_account_total(account, start_date, end_date)
+    def _form_to_html_rows(
+        self,
+        trial_balance_data: list[TrialBalanceEntry],
+        year: int,
+        total_debits: Decimal,
+        total_credits: Decimal,
+    ) -> dict:
+        """試算表データをHTML表示用のコンテキストデータに変換するユーティリティメソッド。
 
-            if account.type in ['asset', 'expense']:
-                ws.append([total, account.name, ""])
-                total_debits += total
-            else:
-                ws.append(["", account.name, total])
-                total_credits += total
+        注意: このメソッドは後方互換性のために残されています。
 
-        ws.append([total_debits, "合計", total_credits])
+        Args:
+            trial_balance_data (list[TrialBalanceEntry]): 試算表データのリスト
+            year (int): 対象年度
+            total_debits (Decimal): 借方合計
+            total_credits (Decimal): 貸方合計
+        Returns:
+            dict: HTML表示用のコンテキストデータ
+        """
+        data = {
+            "total_debits": total_debits,
+            "total_credits": total_credits,
+            "year": year,
+            "trial_balance_data": trial_balance_data,
+        }
+        return data
 
-        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename=trial_balance_{year}.xlsx'
-        wb.save(response)
-        return response
 
-
-class BalanceSheetView(TemplateView):
+class BalanceSheetView(FinancialStatementView):
     """貸借対照表ビュー"""
+
     template_name = "ledger/balance_sheet_table.html"
+    ACCOUNT_TYPES = ["asset", "liability", "equity"]
+    DEBIT_TYPES = ["asset"]
+    CREDIT_TYPES = ["liability", "equity"]
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # 貸借対照表のデータ取得ロジックをここに実装
-        year = int(self.request.GET.get("year", datetime.now().year))
-        context["year"] = year
-        start_date, end_date = get_fiscal_range(year)
+    def add_specific_context(self, context: dict, data_dict: dict) -> None:
+        """貸借対照表固有のコンテキスト追加。
 
-        total_debits = Decimal("0.00")
-        total_credits = Decimal("0.00")
-
-        for account_type in ['asset', 'liability', 'equity']:
-            accounts = Account.objects.filter(type=account_type).order_by("name")
-            account_data = []
-
-            for account in accounts:
-                total = calculate_account_total(account, start_date, end_date)
-
-                account_data.append({
-                    "account": account,
-                    "type": account_type,
-                    "balance": total,
-                })
-
-            context[f"{account_type}_accounts"] = account_data
-
-            total_debits += sum(item["balance"] for item in account_data if item["type"] == "asset")
-            total_credits += sum(item["balance"] for item in account_data if item["type"] in ["liability", "equity"])
-        context["total_debits"] = total_debits
-        context["total_credits"] = total_credits
-
+        Args:
+            context (dict): コンテキストデータ
+            data_dict (dict): get_dataから返されたデータ辞書
+        """
+        # 貸借対照表データを追加
+        context["balance_sheet_data"] = data_dict["entries"]
 
         # HACK: 貸借差額を繰越利益剰余金or繰越欠損金を直接計算している
         # 本来は損益振替・資本振替をした決算整理仕訳を経由して反映させるべき
+        total_debits = data_dict["total_debits"]
+        total_credits = data_dict["total_credits"]
+
         if total_debits > total_credits:
             context["rebf"] = total_debits - total_credits
         else:
             context["debfb"] = total_credits - total_debits
 
-        # htmlのtableで貸借対照表を表示するための転置処理
-        debit_columns = context['asset_accounts']
-        credit_columns = context['liability_accounts'] + context['equity_accounts']
 
-        paired_columns = [(debit, credit) for debit, credit in zip_longest(debit_columns, credit_columns, fillvalue=None)]
-
-        context['paired_columns'] = paired_columns
-
-        return context
-
-
-class ExportBalanceSheetView(View):
-    """貸借対照表エクスポートビュー"""
-    def get(self, request, *args, **kwargs):
-        # TODO: エクスポート処理の実装
-        pass
-
-
-class ProfitAndLossView(TemplateView):
+class ProfitAndLossView(FinancialStatementView):
     """損益計算書ビュー"""
+
     template_name = "ledger/profit_and_loss_table.html"
+    ACCOUNT_TYPES = ["revenue", "expense"]
+    DEBIT_TYPES = ["expense"]
+    CREDIT_TYPES = ["revenue"]
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # 損益計算書のデータ取得ロジックをここに実装
-        year = int(self.request.GET.get("year", datetime.now().year))
-        context["year"] = year
-        start_date, end_date = get_fiscal_range(year)
+    def add_specific_context(self, context: dict, data_dict: dict) -> None:
+        """損益計算書固有のコンテキスト追加。
 
-        total_revenue = Decimal("0.00")
-        total_expense = Decimal("0.00")
-
-        for account_type in ['revenue', 'expense']:
-            accounts = Account.objects.filter(type=account_type).order_by("name")
-            account_data = []
-
-            for account in accounts:
-                total = calculate_account_total(account, start_date, end_date)
-
-                account_data.append({
-                    "account": account,
-                    "type": account_type,
-                    "balance": total,
-                })
-
-            context[f"{account_type}_accounts"] = account_data
-
-            if account_type == 'revenue':
-                total_revenue += sum(item["balance"] for item in account_data)
-            else:
-                total_expense += sum(item["balance"] for item in account_data)
-
-        context["total_revenue"] = total_revenue
-        context["total_expense"] = total_expense
+        Args:
+            context (dict): コンテキストデータ
+            data_dict (dict): get_dataから返されたデータ辞書
+        """
+        # 損益計算書では借方=費用、貸方=収益なので入れ替える
+        context["loss_data"] = data_dict["debit_accounts"]  # 費用
+        context["profit_data"] = data_dict["credit_accounts"]  # 収益
+        context["total_expense"] = data_dict["total_debits"]  # 費用合計
+        context["total_revenue"] = data_dict["total_credits"]  # 収益合計
 
         # HACK: 当期純利益・純損失を直接計算している
         # 本来は損益振替仕訳を経由して反映させるべき
+        self.add_net_income_or_loss_to_context(
+            context,
+            data_dict["total_credits"],  # 収益
+            data_dict["total_debits"],  # 費用
+        )
+
+    def calc_net_income_or_loss(
+        self, total_revenue: Decimal, total_expense: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        """当期純利益または純損失を計算するユーティリティメソッド。
+
+        Args:
+            total_revenue (Decimal): 総収益
+            total_expense (Decimal): 総費用
+
+        Returns:
+            tuple[Decimal, Decimal]: (当期純利益, 当期純損失)
+        """
         if total_revenue >= total_expense:
-            context["net_income"] = total_revenue - total_expense
+            net_income = total_revenue - total_expense
+            net_loss = Decimal("0.00")
         else:
-            context["net_loss"] = total_expense - total_revenue
+            net_income = Decimal("0.00")
+            net_loss = total_expense - total_revenue
+        return net_income, net_loss
 
-        # htmlのtableで貸借対照表を表示するための転置処理
-        debit_columns = context["expense_accounts"]
-        credit_columns = context["revenue_accounts"]
+    def add_net_income_or_loss_to_context(
+        self,
+        context: dict,
+        total_revenue: Decimal,
+        total_expense: Decimal,
+    ) -> None:
+        """コンテキストに当期純利益または純損失を追加するユーティリティメソッド。
 
-        paired_columns = [
-            (debit, credit)
-            for debit, credit in zip_longest(
-                debit_columns, credit_columns, fillvalue=None
-            )
-        ]
-
-        context["paired_columns"] = paired_columns
-
-        return context
-
-
-class ExportProfitAndLossView(View):
-    """損益計算書エクスポートビュー"""
-    def get(self, request, *args, **kwargs):
-        # TODO: エクスポート処理の実装
-        pass
+        Args:
+            context (dict): コンテキストデータ
+            total_revenue (Decimal): 総収益
+            total_expense (Decimal): 総費用
+        """
+        net_income, net_loss = self.calc_net_income_or_loss(
+            total_revenue, total_expense
+        )
+        if net_income > Decimal("0.00"):
+            context["net_income"] = net_income
+        elif net_loss > Decimal("0.00"):
+            context["net_loss"] = net_loss
 
 
 class AbstractCashBookView(TemplateView):
@@ -594,9 +918,7 @@ class AbstractCashBookView(TemplateView):
 
     def get_context_data(self, **kwargs):
         if not self.TARGET_ACCOUNT_NAME:
-            raise ImproperlyConfigured(
-                ErrorMessages.MESSAGE_0002.value
-            )
+            raise ImproperlyConfigured(ErrorMessages.MESSAGE_0002.value)
 
         context = super().get_context_data(**kwargs)
         year, month = self._parse_year_month()
@@ -638,6 +960,7 @@ class PettyCashBookView(AbstractCashBookView):
 
 class PurchaseBookView(TemplateView):
     """仕入帳ビュー"""
+
     template_name = "ledger/purchase_book.html"
 
     def _parse_year_month(self):
@@ -838,6 +1161,7 @@ class PurchaseBookView(TemplateView):
 
 class DashboardView(TemplateView):
     """ダッシュボードビュー"""
+
     template_name = "ledger/dashboard/page.html"
 
     PARTIALS = {
@@ -846,7 +1170,6 @@ class DashboardView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # ダッシュボード用のデータ取得ロジックをここに実装
         current_year = datetime.now().year
         current_month = datetime.now().month
         context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
@@ -872,7 +1195,9 @@ class DashboardView(TemplateView):
             return render(request, self.PARTIALS[partial], context)
         return super().get(request, *args, **kwargs)
 
-    def _get_sales_chart_data(self, span: int=6) -> tuple[list[str], list[int], list[int]]:
+    def _get_sales_chart_data(
+        self, span: int = 6
+    ) -> tuple[list[str], list[int], list[int]]:
         labels = [
             f"{(datetime.now() - timedelta(days=30*i)).strftime('%Y-%m')}"
             for i in range(span - 1, -1, -1)

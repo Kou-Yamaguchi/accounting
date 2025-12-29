@@ -11,10 +11,15 @@
 </head>
 
 <h2>貸借対照表</h2>
-<label for="year">年：</label>
-<input type="number" name="year" value="2025" hx-get="{% url 'balance_sheet_by_year' %}" hx-trigger="load, change"
-  hx-target="#balance-table" hx-include="this" 
-/>
+<form action="{% url 'balance_sheet_by_year' %}">
+  <label for="year">年：</label>
+  <input type="number" name="year" value="2025" hx-get="{% url 'balance_sheet_by_year' %}?format=html" hx-trigger="load, change"
+    hx-target="#balance-table" hx-include="this" 
+  />
+  <input type="hidden" name="format" value="xlsx">
+  <button type="submit">エクスポート</button>
+</form>
+
 <table id="balance-table" class="table table-striped">
   <thead>
     <tr>

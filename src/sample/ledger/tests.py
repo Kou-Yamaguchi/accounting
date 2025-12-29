@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
+from django.http import HttpRequest, HttpResponse
 
 from ledger.models import (
     JournalEntry,
@@ -18,11 +19,14 @@ from ledger.models import (
     Company,
 )
 from ledger.views import (
-    GeneralLedgerView, 
-    PurchaseBookView, 
+    GeneralLedgerView,
+    PurchaseBookView,
     PurchaseBookEntry,
     TrialBalanceView,
-    TrialBalanceEntry
+    TrialBalanceEntry,
+    BalanceSheetView,
+    ProfitAndLossView,
+    DashboardView,
 )
 from ledger.services import calculate_monthly_balance
 from enums.error_messages import ErrorMessages
@@ -584,6 +588,7 @@ class TrialBalanceViewTest(TestCase):
     def setUp(self):
         # テストに必要な初期データ（勘定科目）を作成
         self.factory = RequestFactory()
+        self.view = TrialBalanceView()
 
         self.accounts = create_accounts(
             [
@@ -603,13 +608,16 @@ class TrialBalanceViewTest(TestCase):
         試算表ビューにアクセスできることを確認するテストケース
         """
         request = self.factory.get(self.url)
-        response = TrialBalanceView.as_view()(request)
+        response: HttpResponse = TrialBalanceView.as_view()(request)
 
+        self.view = TrialBalanceView()
+
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("trial_balance_data", response.context_data)
 
         # 全ての勘定科目がresponseに含まれていることを確認
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data["trial_balance_data"]
+        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
         account_names_in_response = {entry.name for entry in trial_balance_data}
         for account in self.accounts.values():
             self.assertIn(account.name, account_names_in_response)
@@ -641,8 +649,11 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
+
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data["trial_balance_data"]
+        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
 
         # 各勘定科目の合計を検証
         for entry in trial_balance_data:
@@ -676,11 +687,22 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
-        self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data["trial_balance_data"]
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
 
-        total_debit = sum(entry.total for entry in trial_balance_data if entry.type in ["asset", "expense"])
-        total_credit = sum(entry.total for entry in trial_balance_data if not entry.type in ["asset", "expense"])
+        self.assertEqual(response.status_code, 200)
+        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
+
+        total_debit = sum(
+            entry.total
+            for entry in trial_balance_data
+            if entry.type in ["asset", "expense"]
+        )
+        total_credit = sum(
+            entry.total
+            for entry in trial_balance_data
+            if not entry.type in ["asset", "expense"]
+        )
 
         self.assertEqual(total_debit, total_credit, "借方合計と貸方合計が一致すること")
 
@@ -691,12 +713,17 @@ class TrialBalanceViewTest(TestCase):
         request = self.factory.get(self.url)
         response = TrialBalanceView.as_view()(request)
 
+        data_dict = self.view.get_data(year=2025)
+        context = self.view.build_context(2025, data_dict)
+
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = response.context_data["trial_balance_data"]
+        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
 
         # 取引がない場合、全ての勘定科目の合計が0であることを確認
         for entry in trial_balance_data:
-            self.assertEqual(entry.total, Decimal("0.00"), f"{entry.name}の合計が0であること")
+            self.assertEqual(
+                entry.total, Decimal("0.00"), f"{entry.name}の合計が0であること"
+            )
 
 
 class BalanceSheetViewTest(TestCase):
@@ -707,14 +734,475 @@ class BalanceSheetViewTest(TestCase):
     def setUp(self):
         # テストに必要な初期データ（勘定科目）を作成
         self.factory = RequestFactory()
+        self.view = BalanceSheetView()
 
-        self.cash = Account.objects.create(name="現金", type="Asset")
-        self.accounts_payable = Account.objects.create(name="買掛金", type="Liability")
+        self.accounts = create_accounts(
+            [
+                AccountData(name="現金", type="asset"),
+                AccountData(name="売掛金", type="asset"),
+                AccountData(name="買掛金", type="liability"),
+                AccountData(name="資本金", type="equity"),
+            ]
+        )
 
         # テスト対象のビューにアクセスするためのURLを準備
-        self.url = "/ledger/balance_sheet/"
+        self.url = "/ledger/balance_sheet_by_year/?year=2025"
 
-    # ここに貸借対照表ビューのテストケースを追加していく
+    def test_balance_sheet_view_access(self):
+        """
+        貸借対照表ビューにアクセスできることを確認するテストケース
+        """
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        response = BalanceSheetView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_balance_sheet_account_classification(self):
+        """
+        貸借対照表の勘定科目が資産・負債・純資産に正しく分類されていることを確認するテストケース
+        """
+        # いくつかの取引を作成して、貸借対照表にデータが存在するようにする
+        create_journal_entry(
+            date(2025, 1, 10),
+            "開業資本金",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["資本金"], Decimal("100000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "掛売上",
+            [(self.accounts["売掛金"], Decimal("50000.00"))],
+            [
+                (
+                    Account.objects.create(name="売上", type="revenue"),
+                    Decimal("50000.00"),
+                )
+            ],
+        )
+        create_journal_entry(
+            date(2025, 3, 20),
+            "掛仕入",
+            [
+                (
+                    Account.objects.create(name="仕入", type="expense"),
+                    Decimal("30000.00"),
+                )
+            ],
+            [(self.accounts["買掛金"], Decimal("30000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+
+        # 資産勘定が含まれていることを確認
+        asset_accounts = data_dict["debit_accounts"]
+        asset_names = {item.name for item in asset_accounts}
+        self.assertIn("現金", asset_names)
+        self.assertIn("売掛金", asset_names)
+
+        # 負債勘定が含まれていることを確認
+        liability_accounts = data_dict["credit_accounts"]
+        liability_names = {item.name for item in liability_accounts}
+        self.assertIn("買掛金", liability_names)
+
+        # 純資産勘定が含まれていることを確認
+        equity_accounts = data_dict["credit_accounts"]
+        equity_names = {item.name for item in equity_accounts}
+        self.assertIn("資本金", equity_names)
+
+    def test_balance_sheet_account_totals(self):
+        """
+        貸借対照表の各勘定科目の残高が正しく計算されていることを確認するテストケース
+        """
+        # いくつかの取引を作成
+        create_journal_entry(
+            date(2025, 1, 10),
+            "開業資本金",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["資本金"], Decimal("100000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "現金支払",
+            [
+                (
+                    Account.objects.create(name="消耗品費", type="expense"),
+                    Decimal("5000.00"),
+                )
+            ],
+            [(self.accounts["現金"], Decimal("5000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+
+        # 現金の残高を確認 (100000 - 5000 = 95000)
+        asset_accounts = data_dict["debit_accounts"]
+        cash_balance = next(
+            item.total for item in asset_accounts if item.name == "現金"
+        )
+        self.assertEqual(cash_balance, Decimal("95000.00"))
+
+        # 資本金の残高を確認
+        equity_accounts = data_dict["credit_accounts"]
+        capital_balance = next(
+            item.total
+            for item in equity_accounts
+            if item.name == "資本金"
+        )
+        self.assertEqual(capital_balance, Decimal("100000.00"))
+
+    def test_balance_sheet_totals(self):
+        """
+        貸借対照表の借方合計と貸方合計を確認するテストケース
+        （純資産には損益が含まれるため、借方合計=貸方合計とはならない場合がある）
+        """
+        # いくつかの取引を作成
+        create_journal_entry(
+            date(2025, 1, 10),
+            "開業資本金",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["資本金"], Decimal("100000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "掛仕入",
+            [
+                (
+                    Account.objects.create(name="仕入", type="expense"),
+                    Decimal("30000.00"),
+                )
+            ],
+            [(self.accounts["買掛金"], Decimal("30000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
+
+        # 資産合計を確認 (現金100000)
+        self.assertEqual(context["total_debits"], Decimal("100000.00"))
+
+        # 負債+純資産合計を確認 (買掛金30000 + 資本金100000)
+        self.assertEqual(context["total_credits"], Decimal("130000.00"))
+
+    def test_balance_sheet_no_transactions(self):
+        """
+        取引が存在しない場合の貸借対照表ビューの動作を確認するテストケース
+        """
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        self.view.request = request
+        data_dict = self.view.get_data(2025)
+
+        # 全ての勘定科目の残高が0であることを確認
+        for item in data_dict["debit_accounts"] + data_dict["credit_accounts"]:
+            self.assertEqual(item.total, Decimal("0.00"))
+
+    def test_balance_sheet_paired_columns(self):
+        """
+        貸借対照表の表示用転置処理が正しく行われていることを確認するテストケース
+        """
+        # テスト用の取引を作成
+        create_journal_entry(
+            date(2025, 1, 10),
+            "開業資本金",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["資本金"], Decimal("100000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        self.view.request = request
+        data_dict = self.view.get_data(2025)
+        context = self.view.build_context(2025, data_dict)
+        paired_columns = context["paired_columns"]
+        # # paired_columnsが存在することを確認
+        self.assertIsNotNone(paired_columns)
+
+        # paired_columnsが正しい構造であることを確認
+        self.assertIsInstance(paired_columns, list)
+        if len(paired_columns) > 0:
+            self.assertIsInstance(paired_columns[0], tuple)
+            self.assertEqual(len(paired_columns[0]), 2)
+
+
+class ProfitAndLossViewTest(TestCase):
+    """
+    損益計算書ビューのテスト
+    """
+
+    def setUp(self):
+        # テストに必要な初期データ（勘定科目）を作成
+        self.factory = RequestFactory()
+        self.view = ProfitAndLossView()
+
+        self.accounts = create_accounts(
+            [
+                AccountData(name="現金", type="asset"),
+                AccountData(name="売上", type="revenue"),
+                AccountData(name="仕入", type="expense"),
+                AccountData(name="消耗品費", type="expense"),
+            ]
+        )
+
+        # テスト対象のビューにアクセスするためのURLを準備
+        self.url = "/ledger/profit_and_loss_by_year/?year=2025"
+
+    def test_profit_and_loss_view_access(self):
+        """
+        損益計算書ビューにアクセスできることを確認するテストケース
+        """
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        response = ProfitAndLossView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_profit_and_loss_account_classification(self):
+        """
+        損益計算書の勘定科目が収益・費用に正しく分類されていることを確認するテストケース
+        """
+        # いくつかの取引を作成して、損益計算書にデータが存在するようにする
+        create_journal_entry(
+            date(2025, 1, 10),
+            "売上",
+            [(self.accounts["現金"], Decimal("50000.00"))],
+            [(self.accounts["売上"], Decimal("50000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "仕入",
+            [(self.accounts["仕入"], Decimal("30000.00"))],
+            [(self.accounts["現金"], Decimal("30000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 3, 20),
+            "消耗品費",
+            [(self.accounts["消耗品費"], Decimal("5000.00"))],
+            [(self.accounts["現金"], Decimal("5000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        self.view.request = request
+        data_dict = self.view.get_data(2025)
+
+        # 収益勘定が含まれていることを確認
+        revenue_accounts = data_dict["credit_accounts"]
+        revenue_names = {item.name for item in revenue_accounts}
+        self.assertIn("売上", revenue_names)
+
+        # 費用勘定が含まれていることを確認
+        expense_accounts = data_dict["debit_accounts"]
+        expense_names = {item.name for item in expense_accounts}
+        self.assertIn("仕入", expense_names)
+        self.assertIn("消耗品費", expense_names)
+
+    def test_profit_and_loss_account_totals(self):
+        """
+        損益計算書の各勘定科目の残高が正しく計算されていることを確認するテストケース
+        """
+        # いくつかの取引を作成
+        create_journal_entry(
+            date(2025, 1, 10),
+            "売上1",
+            [(self.accounts["現金"], Decimal("50000.00"))],
+            [(self.accounts["売上"], Decimal("50000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "売上2",
+            [(self.accounts["現金"], Decimal("30000.00"))],
+            [(self.accounts["売上"], Decimal("30000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 3, 20),
+            "仕入",
+            [(self.accounts["仕入"], Decimal("40000.00"))],
+            [(self.accounts["現金"], Decimal("40000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+
+        # 売上の残高を確認 (50000 + 30000 = 80000)
+        revenue_accounts = data_dict["credit_accounts"]
+        sales_balance = next(
+            item.total
+            for item in revenue_accounts
+            if item.name == "売上"
+        )
+        self.assertEqual(sales_balance, Decimal("80000.00"))
+
+        # 仕入の残高を確認
+        expense_accounts = data_dict["debit_accounts"]
+        purchase_balance = next(
+            item.total
+            for item in expense_accounts
+            if item.name == "仕入"
+        )
+        self.assertEqual(purchase_balance, Decimal("40000.00"))
+
+    def test_profit_and_loss_totals(self):
+        """
+        損益計算書の収益合計と費用合計を確認するテストケース
+        """
+        # いくつかの取引を作成
+        create_journal_entry(
+            date(2025, 1, 10),
+            "売上",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["売上"], Decimal("100000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "仕入",
+            [(self.accounts["仕入"], Decimal("60000.00"))],
+            [(self.accounts["現金"], Decimal("60000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 3, 20),
+            "消耗品費",
+            [(self.accounts["消耗品費"], Decimal("10000.00"))],
+            [(self.accounts["現金"], Decimal("10000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
+
+        total_revenue = context["total_credits"]
+        total_expense = context["total_debits"]
+
+        # 収益合計を確認
+        self.assertEqual(total_revenue, Decimal("100000.00"))
+
+        # 費用合計を確認 (60000 + 10000 = 70000)
+        self.assertEqual(total_expense, Decimal("70000.00"))
+
+    def test_profit_and_loss_net_income(self):
+        """
+        当期純利益が正しく計算されていることを確認するテストケース
+        """
+        # 収益 > 費用 の場合
+        create_journal_entry(
+            date(2025, 1, 10),
+            "売上",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["売上"], Decimal("100000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "仕入",
+            [(self.accounts["仕入"], Decimal("60000.00"))],
+            [(self.accounts["現金"], Decimal("60000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
+
+        # 当期純利益を確認 (100000 - 60000 = 40000)
+        self.assertIn("net_income", context)
+        self.assertEqual(context["net_income"], Decimal("40000.00"))
+        self.assertNotIn("net_loss", context)
+
+    def test_profit_and_loss_net_loss(self):
+        """
+        当期純損失が正しく計算されていることを確認するテストケース
+        """
+        # 費用 > 収益 の場合
+        create_journal_entry(
+            date(2025, 1, 10),
+            "売上",
+            [(self.accounts["現金"], Decimal("30000.00"))],
+            [(self.accounts["売上"], Decimal("30000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "仕入",
+            [(self.accounts["仕入"], Decimal("50000.00"))],
+            [(self.accounts["現金"], Decimal("50000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2024"}
+        self.view.request = request
+        data_dict = self.view.get_data(2024)
+        context = self.view.build_context(2024, data_dict)
+
+        # 当期純損失を確認 (50000 - 30000 = 20000)
+        self.assertIn("net_loss", context)
+        self.assertEqual(context["net_loss"], Decimal("20000.00"))
+        self.assertNotIn("net_income", context)
+
+    def test_profit_and_loss_no_transactions(self):
+        """
+        取引が存在しない場合の損益計算書ビューの動作を確認するテストケース
+        """
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        self.view.request = request
+        data_dict = self.view.get_data(2025)
+        context = self.view.build_context(2025, data_dict)
+
+        # 全ての勘定科目の残高が0であることを確認
+        for data in context["profit_data"]:
+            self.assertEqual(data.total, Decimal("0.00"))
+        for data in context["loss_data"]:
+            self.assertEqual(data.total, Decimal("0.00"))
+
+        # 収益・費用合計が0であることを確認
+        self.assertEqual(context["total_revenue"], Decimal("0.00"))
+        self.assertEqual(context["total_expense"], Decimal("0.00"))
+
+    def test_profit_and_loss_paired_columns(self):
+        """
+        損益計算書の表示用転置処理が正しく行われていることを確認するテストケース
+        """
+        # テスト用の取引を作成
+        create_journal_entry(
+            date(2025, 1, 10),
+            "売上",
+            [(self.accounts["現金"], Decimal("100000.00"))],
+            [(self.accounts["売上"], Decimal("100000.00"))],
+        )
+        create_journal_entry(
+            date(2025, 2, 15),
+            "仕入",
+            [(self.accounts["仕入"], Decimal("60000.00"))],
+            [(self.accounts["現金"], Decimal("60000.00"))],
+        )
+
+        request = self.factory.get(self.url)
+        request.GET = {"year": "2025"}
+        self.view.request = request
+        data_dict = self.view.get_data(2025)
+        context = self.view.build_context(2025, data_dict)
+
+        # paired_columnsが存在することを確認
+        self.assertIn("paired_columns", context)
+        paired_columns = context["paired_columns"]
+
+        # paired_columnsが正しい構造であることを確認
+        self.assertIsInstance(paired_columns, list)
+        if len(paired_columns) > 0:
+            self.assertIsInstance(paired_columns[0], tuple)
+            self.assertEqual(len(paired_columns[0]), 2)
 
 
 class CashBookCalculationTest(TestCase):
@@ -1010,6 +1498,210 @@ class CashBookCalculationTest(TestCase):
             "売上",
             "summaryが空欄でも相手勘定科目が摘要になること",
         )
+
+
+class DashboardViewTest(TestCase):
+    """
+    DashboardViewのテスト
+    """
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        # テストに必要な勘定科目を作成
+        self.accounts = create_accounts(
+            [
+                AccountData(name="現金", type="asset"),
+                AccountData(name="売上", type="revenue"),
+                AccountData(name="仕入", type="expense"),
+                AccountData(name="消耗品費", type="expense"),
+            ]
+        )
+
+    def test_dashboard_view_access(self):
+        """ダッシュボードビューにアクセスできることを確認"""
+        # from ledger.views import DashboardView
+
+        request = self.factory.get("/ledger/dashboard/")
+        response = DashboardView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("monthly_sales", response.context_data)
+        self.assertIn("monthly_profit", response.context_data)
+        self.assertIn("sales_chart_labels", response.context_data)
+        self.assertIn("sales_chart_sales_data", response.context_data)
+        self.assertIn("sales_chart_profit_data", response.context_data)
+
+    def test_monthly_sales_calculation(self):
+        """月次売上が正しく計算されることを確認"""
+        # from ledger.views import DashboardView
+
+        # 現在月の取引を作成
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+
+        # 売上取引1: 10000円
+        create_journal_entry(
+            date(current_year, current_month, 5),
+            "売上取引1",
+            [(self.accounts["現金"], Decimal("10000.00"))],
+            [(self.accounts["売上"], Decimal("10000.00"))],
+        )
+
+        # 売上取引2: 5000円
+        create_journal_entry(
+            date(current_year, current_month, 15),
+            "売上取引2",
+            [(self.accounts["現金"], Decimal("5000.00"))],
+            [(self.accounts["売上"], Decimal("5000.00"))],
+        )
+
+        request = self.factory.get("/ledger/dashboard/")
+        response = DashboardView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        # 月次売上が15000円であること
+        self.assertEqual(response.context_data["monthly_sales"], Decimal("15000.00"))
+
+    def test_monthly_profit_calculation(self):
+        """月次利益が正しく計算されることを確認"""
+        # from ledger.views import DashboardView
+
+        # 現在月の取引を作成
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+
+        # 売上取引: 20000円
+        create_journal_entry(
+            date(current_year, current_month, 5),
+            "売上取引",
+            [(self.accounts["現金"], Decimal("20000.00"))],
+            [(self.accounts["売上"], Decimal("20000.00"))],
+        )
+
+        # 仕入取引: 8000円
+        create_journal_entry(
+            date(current_year, current_month, 10),
+            "仕入取引",
+            [(self.accounts["仕入"], Decimal("8000.00"))],
+            [(self.accounts["現金"], Decimal("8000.00"))],
+        )
+
+        # 消耗品費: 2000円
+        create_journal_entry(
+            date(current_year, current_month, 15),
+            "消耗品購入",
+            [(self.accounts["消耗品費"], Decimal("2000.00"))],
+            [(self.accounts["現金"], Decimal("2000.00"))],
+        )
+
+        request = self.factory.get("/ledger/dashboard/")
+        response = DashboardView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        # 月次利益が10000円（売上20000 - 費用10000）であること
+        self.assertEqual(response.context_data["monthly_profit"], Decimal("10000.00"))
+
+    def test_sales_chart_data_structure(self):
+        """売上・利益推移グラフ用データの構造が正しいことを確認"""
+        from ledger.views import DashboardView
+        import json
+
+        request = self.factory.get("/ledger/dashboard/")
+        response = DashboardView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+
+        # JSONデータがパース可能であることを確認
+        labels = json.loads(response.context_data["sales_chart_labels"])
+        sales_data = json.loads(response.context_data["sales_chart_sales_data"])
+        profit_data = json.loads(response.context_data["sales_chart_profit_data"])
+
+        # labelsが6ヶ月分のリストであること
+        self.assertEqual(len(labels), 6)
+        # sales_dataが6ヶ月分のリストであること
+        self.assertEqual(len(sales_data), 6)
+        # profit_dataが6ヶ月分のリストであること
+        self.assertEqual(len(profit_data), 6)
+
+        # labelsの各要素が"YYYY-MM"形式であること
+        for label in labels:
+            self.assertRegex(label, r"^\d{4}-\d{2}$")
+
+        # sales_dataとprofit_dataの各要素が数値であること
+        for sales in sales_data:
+            self.assertIsInstance(sales, int)
+        for profit in profit_data:
+            self.assertIsInstance(profit, int)
+
+    def test_recent_half_year_sales_and_profit_trend(self):
+        """直近半年間の売上・利益推移が正しく計算されることを確認"""
+        from ledger.views import DashboardView
+        import json
+        from dateutil.relativedelta import relativedelta
+
+        # 過去6ヶ月分のデータを作成
+        today = date.today()
+
+        for i in range(6):
+            target_date = today - relativedelta(months=i)
+            year = target_date.year
+            month = target_date.month
+
+            # 各月に売上と費用を作成
+            # 売上: (6-i) * 10000円（古い月ほど少ない）
+            sales_amount = Decimal((6 - i) * 10000)
+            create_journal_entry(
+                date(year, month, 10),
+                f"{year}年{month}月の売上",
+                [(self.accounts["現金"], sales_amount)],
+                [(self.accounts["売上"], sales_amount)],
+            )
+
+            # 費用: (6-i) * 3000円
+            expense_amount = Decimal((6 - i) * 3000)
+            create_journal_entry(
+                date(year, month, 15),
+                f"{year}年{month}月の仕入",
+                [(self.accounts["仕入"], expense_amount)],
+                [(self.accounts["現金"], expense_amount)],
+            )
+
+        request = self.factory.get("/ledger/dashboard/")
+        response = DashboardView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+
+        sales_data = json.loads(response.context_data["sales_chart_sales_data"])
+        profit_data = json.loads(response.context_data["sales_chart_profit_data"])
+
+        # sales_dataが昇順（古い月から新しい月）になっていることを確認
+        self.assertEqual(sales_data[0], 10000)  # 6ヶ月前
+        self.assertEqual(sales_data[1], 20000)  # 5ヶ月前
+        self.assertEqual(sales_data[2], 30000)  # 4ヶ月前
+        self.assertEqual(sales_data[3], 40000)  # 3ヶ月前
+        self.assertEqual(sales_data[4], 50000)  # 2ヶ月前
+        self.assertEqual(sales_data[5], 60000)  # 1ヶ月前
+
+        # profit_dataも正しく計算されていることを確認（売上 - 費用）
+        self.assertEqual(profit_data[0], 7000)  # 10000 - 3000
+        self.assertEqual(profit_data[1], 14000)  # 20000 - 6000
+        self.assertEqual(profit_data[2], 21000)  # 30000 - 9000
+        self.assertEqual(profit_data[3], 28000)  # 40000 - 12000
+        self.assertEqual(profit_data[4], 35000)  # 50000 - 15000
+        self.assertEqual(profit_data[5], 42000)  # 60000 - 18000
+
+    def test_no_transactions_scenario(self):
+        """取引が存在しない場合でもエラーなく動作することを確認"""
+        # from ledger.views import DashboardView
+
+        request = self.factory.get("/ledger/dashboard/")
+        response = DashboardView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        # 月次売上が0であること
+        self.assertEqual(response.context_data["monthly_sales"], Decimal("0.00"))
+        # 月次利益が0であること
+        self.assertEqual(response.context_data["monthly_profit"], Decimal("0.00"))
 
 
 class PurchaseBookViewTest(TestCase):

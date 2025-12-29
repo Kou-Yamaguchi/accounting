@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import date
 from typing import Literal
+from dataclasses import dataclass
 
 from dateutil.relativedelta import relativedelta
 from django.db.models import Q
@@ -37,7 +38,13 @@ def list_decimal_to_int(values: list[Decimal]) -> list[int]:
     return [decimal_to_int(value) for value in values]
 
 
-def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple[date, date]:
+@dataclass
+class DayRange:
+    start: date
+    end: date
+
+
+def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> DayRange:
     """
     指定された年の会計期間の開始日と終了日を取得します。
     queryパラメータで会計年度を指定する場合に使用します。
@@ -50,14 +57,15 @@ def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> tuple
         months (int): 会計年度の月数 (デフォルトは12ヶ月)
 
     Returns:
-        tuple[date, date]: 会計期間の開始日と終了日
+        DayRange: 会計期間の開始日と終了日
     """
     start_date = date(year, start_month, 1)
     end_date = start_date + relativedelta(months=months) - relativedelta(days=1)
-    return start_date, end_date
+    result = DayRange(start=start_date, end=end_date)
+    return result
 
 
-def get_month_range(year: int, month: int) -> tuple[date, date]:
+def get_month_range(year: int, month: int) -> DayRange:
     """
     指定された年月の開始日と終了日を取得します。
 
@@ -66,11 +74,12 @@ def get_month_range(year: int, month: int) -> tuple[date, date]:
         month (int): 月
 
     Returns:
-        tuple[date, date]: 月の開始日と終了日
+        DayRange: 月の開始日と終了日
     """
     start_date = date(year, month, 1)
     end_date = start_date + relativedelta(months=1) - relativedelta(days=1)
-    return start_date, end_date
+    result = DayRange(start=start_date, end=end_date)
+    return result
 
 
 def get_initial_balance(account_id: int) -> Decimal:
@@ -283,24 +292,23 @@ def calculate_each_entry_total(
 
 
 def calculate_account_total(
-    account: Account, start_date: date, end_date: date
-):
+    account: Account, day_range: DayRange
+) -> Decimal:
     """
     各勘定科目の合計金額を計算するユーティリティメソッド。
 
     Args:
         account (Account): 対象の勘定科目
-        start_date (date): 期間開始日
-        end_date (date): 期間終了日
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
         Decimal: 指定期間内の勘定科目の合計金額
     """
     debit_total = calculate_each_entry_total(
-        Debit, account, start_date, end_date
+        Debit, account, day_range.start, day_range.end
     )
     credit_total = calculate_each_entry_total(
-        Credit, account, start_date, end_date
+        Credit, account, day_range.start, day_range.end
     )
 
     if account.type in ["asset", "expense"]:
@@ -312,15 +320,14 @@ def calculate_account_total(
 
 
 def get_total_by_account_type(
-    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], start_date: date, end_date: date
+    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], day_range: DayRange
 ) -> Decimal:
     """
     指定された勘定科目タイプの合計金額を計算します。
 
     Args:
         account_type (Literal["asset", "liability", "equity", "revenue", "expense"]): 勘定科目タイプ
-        start_date (date): 期間開始日
-        end_date (date): 期間終了日
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
         Decimal: 指定された勘定科目タイプの合計金額
@@ -328,7 +335,7 @@ def get_total_by_account_type(
     accounts = Account.objects.filter(type=account_type)
 
     total_amount = sum(
-        calculate_account_total(account, start_date, end_date)
+        calculate_account_total(account, day_range)
         for account in accounts
     )
 
@@ -346,9 +353,9 @@ def calc_monthly_sales(year: int, month: int) -> Decimal:
     Returns:
         Decimal: 月次収益
     """
-    start_date, end_date = get_month_range(year, month)
+    month_range: DayRange = get_month_range(year, month)
 
-    total_sales = get_total_by_account_type("revenue", start_date, end_date)
+    total_sales = get_total_by_account_type("revenue", month_range)
 
     return total_sales
 
@@ -386,9 +393,9 @@ def calc_monthly_expense(year: int, month: int) -> Decimal:
     Returns:
         Decimal: 月次費用
     """
-    start_date, end_date = get_month_range(year, month)
+    month_range: DayRange = get_month_range(year, month)
 
-    total_expense = get_total_by_account_type("expense", start_date, end_date)
+    total_expense = get_total_by_account_type("expense", month_range)
 
     return total_expense
 

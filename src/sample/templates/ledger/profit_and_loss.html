@@ -11,9 +11,15 @@
 </head>
 
 <h2>損益計算書</h2>
-<label for="year">年：</label>
-<input type="number" name="year" value="2025" hx-get="{% url 'profit_and_loss_by_year' %}" hx-trigger="load, change"
-  hx-target="#profit-and-loss-table" hx-include="this" />
+<form action="{% url 'profit_and_loss_by_year' %}" method="get">
+  <label for="year">年：</label>
+  <input type="number" name="year" value="2025" hx-get="{% url 'profit_and_loss_by_year' %}?format=html" hx-trigger="load, change"
+  hx-target="#profit-and-loss-table" hx-include="this"
+  />
+  <input type="hidden" name="format" value="xlsx" />
+  <button type="submit">エクスポート</button>
+</form>
+
 <table id="profit-and-loss-table" class="table table-striped">
   <thead>
     <tr>
