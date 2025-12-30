@@ -421,22 +421,12 @@ class GeneralLedgerView(TemplateView):
 
 
 @dataclass
-class TrialBalanceEntry:
-    name: str
-    type: str
-    total: Decimal
-
-
-@dataclass
 class FinancialStatementEntry:
     """財務諸表エントリの共通データクラス"""
 
     name: str
     type: str
     total: Decimal
-
-# 後方互換性のためのエイリアス
-BalanceSheetEntry = FinancialStatementEntry
 
 
 class FinancialStatementView(View):

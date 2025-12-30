@@ -23,7 +23,7 @@ from ledger.views import (
     PurchaseBookView,
     PurchaseBookEntry,
     TrialBalanceView,
-    TrialBalanceEntry,
+    FinancialStatementEntry,
     BalanceSheetView,
     ProfitAndLossView,
     DashboardView,
@@ -617,7 +617,7 @@ class TrialBalanceViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
         # 全ての勘定科目がresponseに含まれていることを確認
-        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
+        trial_balance_data: list[FinancialStatementEntry] = context["trial_balance_data"]
         account_names_in_response = {entry.name for entry in trial_balance_data}
         for account in self.accounts.values():
             self.assertIn(account.name, account_names_in_response)
@@ -653,7 +653,7 @@ class TrialBalanceViewTest(TestCase):
         context = self.view.build_context(2025, data_dict)
 
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
+        trial_balance_data: list[FinancialStatementEntry] = context["trial_balance_data"]
 
         # 各勘定科目の合計を検証
         for entry in trial_balance_data:
@@ -691,7 +691,7 @@ class TrialBalanceViewTest(TestCase):
         context = self.view.build_context(2025, data_dict)
 
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
+        trial_balance_data: list[FinancialStatementEntry] = context["trial_balance_data"]
 
         total_debit = sum(
             entry.total
@@ -717,7 +717,7 @@ class TrialBalanceViewTest(TestCase):
         context = self.view.build_context(2025, data_dict)
 
         self.assertEqual(response.status_code, 200)
-        trial_balance_data: list[TrialBalanceEntry] = context["trial_balance_data"]
+        trial_balance_data: list[FinancialStatementEntry] = context["trial_balance_data"]
 
         # 取引がない場合、全ての勘定科目の合計が0であることを確認
         for entry in trial_balance_data:
