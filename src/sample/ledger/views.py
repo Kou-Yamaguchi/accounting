@@ -24,6 +24,7 @@ from openpyxl import Workbook
 from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import (
+    YearMonth,
     decimal_to_int,
     list_decimal_to_int,
     calculate_monthly_balance,
@@ -83,12 +84,6 @@ def calc_each_account_totals(
         for account in accounts
     ]
     return account_totals
-
-
-@dataclass
-class YearMonth:
-    year: int
-    month: int
 
 
 @dataclass
@@ -1108,24 +1103,22 @@ class DashboardView(TemplateView):
 
     template_name = "ledger/dashboard/page.html"
 
-    PARTIALS = {
-        "sales_chart": "ledger/dashboard/sales_chart.html",
+    PARTIAL_CONFIG: dict = {
+        "sales_chart": {
+            "template": "ledger/dashboard/sales_chart.html",
+            "context": "get_sales_chart_context",
+        },
     }
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        current_year = datetime.now().year
-        current_month = datetime.now().month
-        context["monthly_sales"] = calc_monthly_sales(current_year, current_month)
-        # TODO: 損失の場合，絶対値+赤文字+損失で表示する
-        context["monthly_profit"] = calc_monthly_profit(current_year, current_month)
+        current_year_month: YearMonth = YearMonth(
+            year=datetime.now().year, month=datetime.now().month
+        )
+        context["monthly_sales"] = calc_monthly_sales(current_year_month)
+        context["monthly_profit"] = calc_monthly_profit(current_year_month)
 
-        # 売上・利益推移グラフ用データ
-        # HACK: 売上・利益推移グラフ用データのJSONシリアライズ処理
-        labels, sales_data, profit_data = self._get_sales_chart_data()
-        context["sales_chart_labels"] = json.dumps(labels)
-        context["sales_chart_sales_data"] = json.dumps(sales_data)
-        context["sales_chart_profit_data"] = json.dumps(profit_data)
+        context.update(self.get_sales_chart_context())
         return context
 
     def get(self, request, *args, **kwargs):
@@ -1134,9 +1127,10 @@ class DashboardView(TemplateView):
         span = request.GET.get("span", "6months")
         # 部分テンプレートのレンダリング
 
-        if request.headers.get("HX-Request") and partial in self.PARTIALS:
-            context = self.get_context_data(**kwargs)
-            return render(request, self.PARTIALS[partial], context)
+        if request.headers.get("HX-Request") and partial in self.PARTIAL_CONFIG:
+            cfg = self.PARTIAL_CONFIG[partial]
+            context = getattr(self, cfg["context"])()
+            return render(request, cfg["template"], context)
         return super().get(request, *args, **kwargs)
 
     def _get_sales_chart_data(
@@ -1149,3 +1143,11 @@ class DashboardView(TemplateView):
         sales_data = list_decimal_to_int(calc_recent_half_year_sales())
         profit_data = list_decimal_to_int(calc_recent_half_year_profits())
         return labels, sales_data, profit_data
+
+    def get_sales_chart_context(self, span: int = 6) -> dict:
+        labels, sales_data, profit_data = self._get_sales_chart_data(span)
+        return {
+            "sales_chart_labels": json.dumps(labels),
+            "sales_chart_sales_data": json.dumps(sales_data),
+            "sales_chart_profit_data": json.dumps(profit_data),
+        }

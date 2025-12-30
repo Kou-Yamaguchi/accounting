@@ -10,6 +10,12 @@ from django.db.models import Sum
 from .models import JournalEntry, InitialBalance, Account, Entry, Debit, Credit, PurchaseDetail, Item, Company
 
 
+@dataclass
+class YearMonth:
+    year: int
+    month: int
+
+
 def decimal_to_int(value: Decimal) -> int:
     """
     Decimal型の金額をint型に変換します。
@@ -65,18 +71,17 @@ def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> DayRa
     return result
 
 
-def get_month_range(year: int, month: int) -> DayRange:
+def get_month_range(year_month: YearMonth) -> DayRange:
     """
     指定された年月の開始日と終了日を取得します。
 
     Args:
-        year (int): 年
-        month (int): 月
+        year_month (YearMonth): 年月を表すYearMonthオブジェクト
 
     Returns:
         DayRange: 月の開始日と終了日
     """
-    start_date = date(year, month, 1)
+    start_date = date(year_month.year, year_month.month, 1)
     end_date = start_date + relativedelta(months=1) - relativedelta(days=1)
     result = DayRange(start=start_date, end=end_date)
     return result
@@ -342,18 +347,17 @@ def get_total_by_account_type(
     return total_amount
 
 
-def calc_monthly_sales(year: int, month: int) -> Decimal:
+def calc_monthly_sales(year_month: YearMonth) -> Decimal:
     """
     指定された年月の月次収益を計算します。
 
     Args:
-        year (int): 年
-        month (int): 月
+        year_month (YearMonth): 年月を表すYearMonthオブジェクト
 
     Returns:
         Decimal: 月次収益
     """
-    month_range: DayRange = get_month_range(year, month)
+    month_range: DayRange = get_month_range(year_month)
 
     total_sales = get_total_by_account_type("revenue", month_range)
 
@@ -374,7 +378,7 @@ def calc_recent_half_year_sales() -> list[Decimal]:
         target_date = today - relativedelta(months=i)
         year = target_date.year
         month = target_date.month
-        monthly_sales = calc_monthly_sales(year, month)
+        monthly_sales = calc_monthly_sales(YearMonth(year, month))
         sales_list.append(monthly_sales)
 
     sales_list.reverse()  # 古い順に並び替え
@@ -382,18 +386,17 @@ def calc_recent_half_year_sales() -> list[Decimal]:
     return sales_list
 
 
-def calc_monthly_expense(year: int, month: int) -> Decimal:
+def calc_monthly_expense(year_month: YearMonth) -> Decimal:
     """
     指定された年月の月次費用を計算します。
 
     Args:
-        year (int): 年
-        month (int): 月
+        year_month (YearMonth): 年月を表すYearMonthオブジェクト
 
     Returns:
         Decimal: 月次費用
     """
-    month_range: DayRange = get_month_range(year, month)
+    month_range: DayRange = get_month_range(year_month)
 
     total_expense = get_total_by_account_type("expense", month_range)
 
@@ -414,7 +417,7 @@ def calc_recent_half_year_expenses() -> list[Decimal]:
         target_date = today - relativedelta(months=i)
         year = target_date.year
         month = target_date.month
-        monthly_expense = calc_monthly_expense(year, month)
+        monthly_expense = calc_monthly_expense(YearMonth(year, month))
         expense_list.append(monthly_expense)
 
     expense_list.reverse()  # 古い順に並び替え
@@ -422,19 +425,18 @@ def calc_recent_half_year_expenses() -> list[Decimal]:
     return expense_list
 
 
-def calc_monthly_profit(year: int, month: int) -> Decimal:
+def calc_monthly_profit(year_month: YearMonth) -> Decimal:
     """
     指定された年月の月次利益を計算します。
 
     Args:
-        year (int): 年
-        month (int): 月
+        year_month (YearMonth): 年月を表すYearMonthオブジェクト
 
     Returns:
         Decimal: 月次利益
     """
-    total_sales = calc_monthly_sales(year, month)
-    total_expense = calc_monthly_expense(year, month)
+    total_sales = calc_monthly_sales(year_month)
+    total_expense = calc_monthly_expense(year_month)
 
     monthly_profit = total_sales - total_expense
 
