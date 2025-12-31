@@ -349,7 +349,8 @@ class GeneralLedgerView(TemplateView):
         context = super().get_context_data(**kwargs)
 
         # URLから勘定科目名を取得
-        account_name: str = self.kwargs["account_name"]
+        account_name: str =self.request.GET.get("account_name","")
+        # account_name: str = self.kwargs["account_name"]
 
         # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
         account: Account = get_object_or_404(Account, name=account_name)
