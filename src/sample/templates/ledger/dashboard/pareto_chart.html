@@ -1,0 +1,30 @@
+<canvas id="paretoChart"></canvas>
+
+<script>
+  (() => {
+    const ctx = document.getElementById("paretoChart").getContext("2d");
+    paretoChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: {{ pareto_sales_labels| safe }},
+        datasets: [
+          {
+            label: "売上割合",
+            data: {{ pareto_sales_data| safe }},
+            borderWidth: 2
+          },
+          {
+            label: "累積割合",
+            data: {{ pareto_sales_cumulative_data| safe }},
+            type: "line",
+            borderColor: 'rgba(255, 99, 132, 1)',
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true
+      }
+    });
+  }) ();
+</script>

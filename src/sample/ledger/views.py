@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from calendar import monthrange
 from dataclasses import dataclass
 from itertools import zip_longest
+from operator import attrgetter
 import json
 
 from django.shortcuts import render, get_object_or_404
@@ -21,20 +22,26 @@ from django.db import transaction
 from django.core.exceptions import ImproperlyConfigured
 from openpyxl import Workbook
 
-from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
+from ledger.models import JournalEntry, Account, Company, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import (
     YearMonth,
+    get_last_year_month,
     decimal_to_int,
     list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
+    get_month_range,
     DayRange,
+    get_all_journal_entries_for_account,
+    collect_account_set_from_je,
     calculate_account_total,
     calc_monthly_sales,
     calc_recent_half_year_sales,
     calc_monthly_profit,
     calc_recent_half_year_profits,
+    get_company_sales_last_month,
+    prepare_pareto_chart_data,
 )
 from enums.error_messages import ErrorMessages
 
@@ -63,12 +70,12 @@ class AccountWithTotal:
 
 
 def calc_each_account_totals(
-    fiscal_range: DayRange, pop_list: list[str] = None
+    day_range: DayRange, pop_list: list[str] = None
 ) -> list[AccountWithTotal]:
     """全ての勘定科目の合計金額を計算するユーティリティ関数。
 
     Args:
-        fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
         pop_list (list[str]|None): 対象とする勘定科目タイプのリスト。デフォルトはNone（全ての勘定科目を対象）
 
     Returns:
@@ -80,7 +87,7 @@ def calc_each_account_totals(
         accounts = [acc for acc in get_all_account_objects() if acc.type in pop_list]
 
     account_totals: list[AccountWithTotal] = [
-        AccountWithTotal(account, calculate_account_total(account, fiscal_range))
+        AccountWithTotal(account, calculate_account_total(account, day_range))
         for account in accounts
     ]
     return account_totals
@@ -142,6 +149,31 @@ class AccountDeleteView(DeleteView):
     model = Account
     template_name = "ledger/account_confirm_delete.html"
     success_url = reverse_lazy("account_list")
+
+
+class CompanyCreateView(CreateView):
+    model = Company
+    fields = ["name"]
+    template_name = "ledger/company/form.html"
+    success_url = reverse_lazy("company_list")
+
+class CompanyListView(ListView):
+    model = Company
+    template_name = "ledger/company/list.html"
+    context_object_name = "companies"
+
+
+class CompanyUpdateView(UpdateView):
+    model = Company
+    fields = ["name"]
+    template_name = "ledger/company/form.html"
+    success_url = reverse_lazy("company_list")
+
+
+class CompanyDeleteView(DeleteView):
+    model = Company
+    template_name = "ledger/company/confirm_delete.html"
+    success_url = reverse_lazy("company_list")
 
 
 class JournalEntryListView(ListView):
@@ -259,51 +291,6 @@ class GeneralLedgerView(TemplateView):
         "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
     )
 
-    def _get_all_journal_entries_for_account(
-        self, account: Account
-    ) -> list[JournalEntry]:
-        """
-        指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
-        N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
-
-        Args:
-            account (Account): 対象の勘定科目
-
-        Returns:
-            QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
-        """
-        journal_entries = (
-            JournalEntry.objects.filter(
-                Q(debits__account=account) | Q(credits__account=account)
-            )
-            .distinct()
-            .order_by("date", "pk")
-            .prefetch_related(
-                Prefetch(
-                    "debits",
-                    queryset=Debit.objects.select_related("account"),
-                    to_attr="prefetched_debits",
-                ),
-                Prefetch(
-                    "credits",
-                    queryset=Credit.objects.select_related("account"),
-                    to_attr="prefetched_credits",
-                ),
-            )
-        )
-        return journal_entries
-
-    def _collect_account_set_from_je(
-        self, je: JournalEntry, is_debit: bool
-    ) -> set[Account]:
-        """
-        取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
-        """
-        if is_debit:
-            return set(debit.account for debit in je.prefetched_debits)
-        else:
-            return set(credit.account for credit in je.prefetched_credits)
-
     def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
         """
         相手勘定科目の名前を決定するユーティリティメソッド。
@@ -369,7 +356,7 @@ class GeneralLedgerView(TemplateView):
         context["account"] = account
         target_account_id: int = account.id
 
-        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(
+        journal_entries: list[JournalEntry] = get_all_journal_entries_for_account(
             account
         )
 
@@ -378,10 +365,10 @@ class GeneralLedgerView(TemplateView):
 
         for je in journal_entries:
             # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits: set[Account] = self._collect_account_set_from_je(
+            all_debits: set[Account] = collect_account_set_from_je(
                 je, is_debit=True
             )
-            all_credits: set[Account] = self._collect_account_set_from_je(
+            all_credits: set[Account] = collect_account_set_from_je(
                 je, is_debit=False
             )
 
@@ -1108,6 +1095,14 @@ class DashboardView(TemplateView):
             "template": "ledger/dashboard/sales_chart.html",
             "context": "get_sales_chart_context",
         },
+        "cost_chart": {
+            "template": "ledger/dashboard/expense_breakdown_chart.html",
+            "context": "get_expense_breakdown_context",
+        },
+        "pareto_sales_chart": {
+            "template": "ledger/dashboard/pareto_sales_chart.html",
+            "context": "get_pareto_sales_context",
+        },
     }
 
     def get_context_data(self, **kwargs):
@@ -1119,6 +1114,8 @@ class DashboardView(TemplateView):
         context["monthly_profit"] = calc_monthly_profit(current_year_month)
 
         context.update(self.get_sales_chart_context())
+        context.update(self.get_expense_breakdown_context())
+        context.update(self.get_pareto_sales_context())
         return context
 
     def get(self, request, *args, **kwargs):
@@ -1150,4 +1147,40 @@ class DashboardView(TemplateView):
             "sales_chart_labels": json.dumps(labels),
             "sales_chart_sales_data": json.dumps(sales_data),
             "sales_chart_profit_data": json.dumps(profit_data),
+        }
+    
+    
+    def _get_expense_breakdown_data(self) -> tuple[list[str], list[int]]:
+        last_month_range: DayRange = get_month_range(get_last_year_month())
+        list_total_expense_by_account: list[AccountWithTotal] = calc_each_account_totals(last_month_range, ["expense"])
+        sorted_list_total_expense_by_account= sorted(
+            list_total_expense_by_account,
+            key=attrgetter("total_amount"),
+            reverse=True
+        )
+        labels = [
+            account_total.account_object.name
+            for account_total in sorted_list_total_expense_by_account
+        ]
+        expense_data = [
+            account_total.total_amount
+            for account_total in sorted_list_total_expense_by_account
+        ]
+        expense_data_int = list_decimal_to_int(expense_data)
+        return labels, expense_data_int
+
+    def get_expense_breakdown_context(self) -> dict:
+        labels, expense_data = self._get_expense_breakdown_data()
+        return {
+            "expense_breakdown_labels": json.dumps(labels),
+            "expense_breakdown_data": json.dumps(expense_data),
+        }
+    
+    def get_pareto_sales_context(self) -> dict:
+        company_sales: dict[str, Decimal] = get_company_sales_last_month()
+        labels, sales_data, list_cumulative_sales = prepare_pareto_chart_data(company_sales)
+        return {
+            "pareto_sales_labels": json.dumps(labels),
+            "pareto_sales_data": json.dumps(sales_data),
+            "pareto_sales_cumulative_data": json.dumps(list_cumulative_sales),
         }

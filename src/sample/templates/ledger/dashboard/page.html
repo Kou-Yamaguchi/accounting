@@ -127,7 +127,9 @@
     </div>
     <div class="card">
       <h2>費用内訳</h2>
-      <canvas id="costChart"></canvas>
+      <div id="cost_chart">
+        {% include "ledger/dashboard/cost_chart.html" %}
+      </div>
     </div>
   </div>
 
@@ -139,22 +141,15 @@
     </div>
     <div class="card">
       <h2>取引先集中度</h2>
-      <canvas id="paretoChart"></canvas>
+      <div id="pareto_chart">
+        {% include "ledger/dashboard/pareto_chart.html" %}
+      </div>
     </div>
   </div>
 
 </div>
 
 <script>
-  // 費用内訳
-  new Chart(document.getElementById('costChart'), {
-    type: 'doughnut',
-    data: {
-      labels: ['通信費', 'クラウド', '書籍', '交通費'],
-      datasets: [{ data: [120, 200, 60, 40] }]
-    }
-  });
-
   // トレンド分析
   new Chart(document.getElementById('trendChart'), {
     type: 'line',
@@ -168,14 +163,15 @@
   });
 
   // パレート
-  new Chart(document.getElementById('paretoChart'), {
-    type: 'bar',
-    data: {
-      labels: ['A社', 'B社', 'C社', 'D社'],
-      datasets: [
-        { label: '売上割合', data: [65, 20, 10, 5] }
-      ]
-    }
-  });
+  // new Chart(document.getElementById('paretoChart'), {
+  //   type: 'bar',
+  //   data: {
+  //     labels: ['A社', 'B社', 'C社', 'D社'],
+  //     datasets: [
+  //       { label: '売上割合', data: [65, 20, 10, 5] },
+  //       { label: '累積割合', data: [65, 85, 95, 100], type: 'line' }
+  //     ]
+  //   }
+  // });
 </script>
 {% endblock %}
