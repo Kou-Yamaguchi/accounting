@@ -4,7 +4,7 @@ from typing import Literal
 from dataclasses import dataclass
 
 from dateutil.relativedelta import relativedelta
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.db.models import Sum
 
 from .models import JournalEntry, InitialBalance, Account, Entry, Debit, Credit, PurchaseDetail, Item, Company
@@ -119,6 +119,40 @@ def get_initial_balance(account_id: int) -> Decimal:
         return InitialBalance.objects.get(account_id=account_id).balance
     except InitialBalance.DoesNotExist:
         return Decimal("0.00")
+
+def get_all_journal_entries_for_account(
+    account: Account
+) -> list[JournalEntry]:
+    """
+    指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
+    N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
+
+    Args:
+        account (Account): 対象の勘定科目
+
+    Returns:
+        QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
+    """
+    journal_entries = (
+        JournalEntry.objects.filter(
+            Q(debits__account=account) | Q(credits__account=account)
+        )
+        .distinct()
+        .order_by("date", "pk")
+        .prefetch_related(
+            Prefetch(
+                "debits",
+                queryset=Debit.objects.select_related("account"),
+                to_attr="prefetched_debits",
+            ),
+            Prefetch(
+                "credits",
+                queryset=Credit.objects.select_related("account"),
+                to_attr="prefetched_credits",
+            ),
+        )
+    )
+    return journal_entries
 
 
 def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:

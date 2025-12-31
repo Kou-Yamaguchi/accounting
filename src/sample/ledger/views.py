@@ -33,6 +33,7 @@ from ledger.services import (
     get_fiscal_range,
     get_month_range,
     DayRange,
+    get_all_journal_entries_for_account,
     calculate_account_total,
     calc_monthly_sales,
     calc_recent_half_year_sales,
@@ -262,40 +263,6 @@ class GeneralLedgerView(TemplateView):
         "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
     )
 
-    def _get_all_journal_entries_for_account(
-        self, account: Account
-    ) -> list[JournalEntry]:
-        """
-        指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
-        N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
-
-        Args:
-            account (Account): 対象の勘定科目
-
-        Returns:
-            QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
-        """
-        journal_entries = (
-            JournalEntry.objects.filter(
-                Q(debits__account=account) | Q(credits__account=account)
-            )
-            .distinct()
-            .order_by("date", "pk")
-            .prefetch_related(
-                Prefetch(
-                    "debits",
-                    queryset=Debit.objects.select_related("account"),
-                    to_attr="prefetched_debits",
-                ),
-                Prefetch(
-                    "credits",
-                    queryset=Credit.objects.select_related("account"),
-                    to_attr="prefetched_credits",
-                ),
-            )
-        )
-        return journal_entries
-
     def _collect_account_set_from_je(
         self, je: JournalEntry, is_debit: bool
     ) -> set[Account]:
@@ -372,7 +339,7 @@ class GeneralLedgerView(TemplateView):
         context["account"] = account
         target_account_id: int = account.id
 
-        journal_entries: list[JournalEntry] = self._get_all_journal_entries_for_account(
+        journal_entries: list[JournalEntry] = get_all_journal_entries_for_account(
             account
         )
 
