@@ -274,7 +274,7 @@ def generate_purchase_book(year: int, month: int) -> list:
     pass
 
 def calculate_each_entry_total(
-    entry: Entry, account: Account, start_date: date, end_date: date
+    entry: Entry, account: Account, day_range: DayRange
 ):
     """
     各勘定科目の借方・貸方合計を計算するユーティリティメソッド。
@@ -282,16 +282,15 @@ def calculate_each_entry_total(
     Args:
         entry (Entry): DebitまたはCreditモデル
         account (Account): 対象の勘定科目
-        start_date (date): 期間開始日
-        end_date (date): 期間終了日
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
 
     Returns:
         Decimal: 指定期間内の借方or貸方の合計金額
     """
     total_amount = entry.objects.filter(
         account=account,
-        journal_entry__date__gte=start_date,
-        journal_entry__date__lte=end_date,
+        journal_entry__date__gte=day_range.start,
+        journal_entry__date__lte=day_range.end,
     ).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
     return total_amount
 
@@ -310,10 +309,10 @@ def calculate_account_total(
         Decimal: 指定期間内の勘定科目の合計金額
     """
     debit_total = calculate_each_entry_total(
-        Debit, account, day_range.start, day_range.end
+        Debit, account, day_range
     )
     credit_total = calculate_each_entry_total(
-        Credit, account, day_range.start, day_range.end
+        Credit, account, day_range
     )
 
     if account.type in ["asset", "expense"]:
@@ -459,3 +458,24 @@ def calc_recent_half_year_profits() -> list[Decimal]:
         profit_list.append(profit)
 
     return profit_list
+
+
+def total_expense_recent_month() -> dict[int, Decimal]:
+    """
+    当月の費用を勘定科目ごとに集計します。
+
+    Returns:
+        dict[int, Decimal]: {勘定科目ID: 合計費用} の辞書
+    """
+    today = date.today()
+    year_month = YearMonth(year=today.year, month=today.month)
+    month_range: DayRange = get_month_range(year_month)
+
+    expense_accounts = Account.objects.filter(type="expense")
+    account_totals = {}
+
+    for account in expense_accounts:
+        total_amount = calculate_account_total(account, month_range)
+        account_totals[account.id] = total_amount
+
+    return account_totals

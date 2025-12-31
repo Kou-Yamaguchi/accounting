@@ -1151,3 +1151,17 @@ class DashboardView(TemplateView):
             "sales_chart_sales_data": json.dumps(sales_data),
             "sales_chart_profit_data": json.dumps(profit_data),
         }
+    
+    
+    def _get_expense_breakdown_data(self) -> tuple[list[str], list[int]]:
+        
+        labels, expense_data = calc_expense_breakdown_last_month()
+        expense_data_int = list_decimal_to_int(expense_data)
+        return labels, expense_data_int
+
+    def get_expense_breakdown_context(self) -> dict:
+        labels, expense_data = self._get_expense_breakdown_data()
+        return {
+            "expense_breakdown_labels": json.dumps(labels),
+            "expense_breakdown_data": json.dumps(expense_data),
+        }
