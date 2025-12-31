@@ -43,7 +43,7 @@ urlpatterns = [
     path("trial_balance/", TemplateView.as_view(template_name="ledger/trial_balance.html"), name="trial_balance"),
     path("trial_balance_by_year/", TrialBalanceView.as_view(), name="trial_balance_by_year"),
     path("general_ledger/", TemplateView.as_view(template_name="ledger/general_ledger.html"), name="general_ledger"),
-    path("balance_sheet/", TemplateView.as_view(template_name="ledger/balance_sheet.html"), name="balance_sheet"),
+    path("balance_sheet/", TemplateView.as_view(template_name="ledger/balance_sheet/balance_sheet.html"), name="balance_sheet"),
     path("balance_sheet_by_year/", BalanceSheetView.as_view(), name="balance_sheet_by_year"),
     path("profit_and_loss/", TemplateView.as_view(template_name="ledger/profit_and_loss.html"), name="profit_and_loss"),
     path("profit_and_loss_by_year/", ProfitAndLossView.as_view(), name="profit_and_loss_by_year"),

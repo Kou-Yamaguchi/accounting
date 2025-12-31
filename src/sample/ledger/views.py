@@ -724,7 +724,7 @@ class TrialBalanceView(FinancialStatementView):
 class BalanceSheetView(FinancialStatementView):
     """貸借対照表ビュー"""
 
-    template_name = "ledger/balance_sheet_table.html"
+    template_name = "ledger/balance_sheet/table.html"
     ACCOUNT_TYPES = ["asset", "liability", "equity"]
     DEBIT_TYPES = ["asset"]
     CREDIT_TYPES = ["liability", "equity"]
