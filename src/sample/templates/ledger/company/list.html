@@ -1,0 +1,26 @@
+<!-- 取引先管理 -->
+{% extends "base.html" %}
+
+{% block main %}
+<h1>登録済み取引先</h1>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>名称</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for company in companies %}
+    <tr>
+      <td>{{ company.name }}</td>
+      <td>
+        <a href="{% url 'company_edit' company.pk %}">編集</a> |
+        <a href="{% url 'company_delete' company.pk %}">削除</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{% url 'company_create' %}">新しい取引先を作成</a>
+{% endblock %}

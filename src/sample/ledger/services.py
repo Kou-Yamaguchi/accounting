@@ -7,7 +7,17 @@ from dateutil.relativedelta import relativedelta
 from django.db.models import Q, Prefetch
 from django.db.models import Sum
 
-from .models import JournalEntry, InitialBalance, Account, Entry, Debit, Credit, PurchaseDetail, Item, Company
+from .models import (
+    JournalEntry,
+    InitialBalance,
+    Account,
+    Entry,
+    Debit,
+    Credit,
+    PurchaseDetail,
+    Item,
+    Company,
+)
 
 
 @dataclass
@@ -120,9 +130,8 @@ def get_initial_balance(account_id: int) -> Decimal:
     except InitialBalance.DoesNotExist:
         return Decimal("0.00")
 
-def get_all_journal_entries_for_account(
-    account: Account
-) -> list[JournalEntry]:
+
+def get_all_journal_entries_for_account(account: Account) -> list[JournalEntry]:
     """
     指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
     N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
@@ -154,9 +163,8 @@ def get_all_journal_entries_for_account(
     )
     return journal_entries
 
-def collect_account_set_from_je(
-    je: JournalEntry, is_debit: bool
-) -> set[Account]:
+
+def collect_account_set_from_je(je: JournalEntry, is_debit: bool) -> set[Account]:
     """
     取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
 
@@ -240,24 +248,18 @@ def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
 
     # 期首から前月末までの取引を集計 (前月繰越残高の算出)
     # 勘定科目が debit の場合 (収入)
-    prev_debit_sum = (
-        Debit.objects.filter(
-            account_id=target_id,
-            journal_entry__date__gte=start_of_period,
-            journal_entry__date__lte=end_of_prev_month,
-        ).aggregate(Sum("amount"))["amount__sum"]
-        or Decimal("0")
-    )
+    prev_debit_sum = Debit.objects.filter(
+        account_id=target_id,
+        journal_entry__date__gte=start_of_period,
+        journal_entry__date__lte=end_of_prev_month,
+    ).aggregate(Sum("amount"))["amount__sum"] or Decimal("0")
 
     # 勘定科目が credit の場合 (支出)
-    prev_credit_sum = (
-        Credit.objects.filter(
-            account_id=target_id,
-            journal_entry__date__gte=start_of_period,
-            journal_entry__date__lte=end_of_prev_month,
-        ).aggregate(Sum("amount"))["amount__sum"]
-        or Decimal("0")
-    )
+    prev_credit_sum = Credit.objects.filter(
+        account_id=target_id,
+        journal_entry__date__gte=start_of_period,
+        journal_entry__date__lte=end_of_prev_month,
+    ).aggregate(Sum("amount"))["amount__sum"] or Decimal("0")
 
     # 前月繰越残高 = 期首残高 + 前月までの収入 - 前月までの支出
     current_balance += prev_debit_sum - prev_credit_sum
@@ -349,9 +351,8 @@ def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
 def generate_purchase_book(year: int, month: int) -> list:
     pass
 
-def calculate_each_entry_total(
-    entry: Entry, account: Account, day_range: DayRange
-):
+
+def calculate_each_entry_total(entry: Entry, account: Account, day_range: DayRange):
     """
     各勘定科目の借方・貸方合計を計算するユーティリティメソッド。
 
@@ -371,9 +372,7 @@ def calculate_each_entry_total(
     return total_amount
 
 
-def calculate_account_total(
-    account: Account, day_range: DayRange
-) -> Decimal:
+def calculate_account_total(account: Account, day_range: DayRange) -> Decimal:
     """
     各勘定科目の合計金額を計算するユーティリティメソッド。
 
@@ -384,12 +383,8 @@ def calculate_account_total(
     Returns:
         Decimal: 指定期間内の勘定科目の合計金額
     """
-    debit_total = calculate_each_entry_total(
-        Debit, account, day_range
-    )
-    credit_total = calculate_each_entry_total(
-        Credit, account, day_range
-    )
+    debit_total = calculate_each_entry_total(Debit, account, day_range)
+    credit_total = calculate_each_entry_total(Credit, account, day_range)
 
     if account.type in ["asset", "expense"]:
         total_amount = debit_total - credit_total
@@ -400,7 +395,8 @@ def calculate_account_total(
 
 
 def get_total_by_account_type(
-    account_type: Literal["asset", "liability", "equity", "revenue", "expense"], day_range: DayRange
+    account_type: Literal["asset", "liability", "equity", "revenue", "expense"],
+    day_range: DayRange,
 ) -> Decimal:
     """
     指定された勘定科目タイプの合計金額を計算します。
@@ -415,8 +411,7 @@ def get_total_by_account_type(
     accounts = Account.objects.filter(type=account_type)
 
     total_amount = sum(
-        calculate_account_total(account, day_range)
-        for account in accounts
+        calculate_account_total(account, day_range) for account in accounts
     )
 
     return total_amount
@@ -555,3 +550,122 @@ def total_expense_recent_month() -> dict[int, Decimal]:
         account_totals[account.id] = total_amount
 
     return account_totals
+
+
+def get_company_sales_last_month() -> dict[str, Decimal]:
+    """
+    先月の取引先別売上を集計します。
+
+    N+1問題を回避するため、JournalEntryベースで以下を実施：
+    1. 先月の範囲内のJournalEntryを取得
+    2. revenueタイプの勘定科目を含む仕訳のみをフィルタ
+    3. prefetch_relatedで関連データを一括取得
+    4. Pythonレベルで取引先別に集計
+
+    Returns:
+        dict[str, Decimal]: {取引先名: 売上金額} の辞書（降順ソート済み）
+    """
+    last_month = get_last_year_month()
+    month_range = get_month_range(last_month)
+
+    # 先月のrevenueを含む仕訳を一括取得（N+1問題回避）
+    journal_entries = (
+        JournalEntry.objects.filter(
+            Q(debits__account__type="revenue") | Q(credits__account__type="revenue"),
+            date__gte=month_range.start,
+            date__lte=month_range.end,
+            company__isnull=False,  # companyが紐づいている仕訳のみ
+        )
+        .distinct()
+        .select_related("company")  # companyを一括取得
+        .prefetch_related(
+            Prefetch(
+                "debits",
+                queryset=Debit.objects.select_related("account"),
+                to_attr="prefetched_debits",
+            ),
+            Prefetch(
+                "credits",
+                queryset=Credit.objects.select_related("account"),
+                to_attr="prefetched_credits",
+            ),
+        )
+    )
+
+    # 取引先別売上を集計
+    company_sales = {}
+
+    for je in journal_entries:
+        company_name = je.company.name
+
+        # 売上（credit側のrevenue）を集計
+        revenue_amount = sum(
+            credit.amount
+            for credit in je.prefetched_credits
+            if credit.account.type == "revenue"
+        )
+
+        # 売上返品などがある場合（debit側のrevenue）を減算
+        revenue_return = sum(
+            debit.amount
+            for debit in je.prefetched_debits
+            if debit.account.type == "revenue"
+        )
+
+        net_revenue = revenue_amount - revenue_return
+
+        # 取引先別に累積
+        company_sales[company_name] = (
+            company_sales.get(company_name, Decimal("0.00")) + net_revenue
+        )
+
+    # 売上金額の降順でソート
+    sorted_company_sales = dict(
+        sorted(company_sales.items(), key=lambda x: x[1], reverse=True)
+    )
+
+    return sorted_company_sales
+
+
+def prepare_pareto_chart_data(
+    company_sales: dict[str, Decimal],
+) -> tuple[list[str], list[int], list[int]]:
+    """
+    取引先別売上データをパレート図用のデータに変換します。
+
+    Args:
+        company_sales (dict[str, Decimal]): {取引先名: 売上金額} の辞書（降順ソート済み前提）
+
+    Returns:
+        tuple[list[str], list[int], list[int]]:
+            - 取引先名リスト
+            - 売上の割合リスト（％）
+            - 累積売上割合リスト（％）
+    """
+    if not company_sales:
+        return [], [], []
+
+    # データ抽出
+    company_names = list(company_sales.keys())
+    sales_amounts = list(company_sales.values())
+
+    # 合計売上
+    total_sales = sum(sales_amounts)
+
+    if total_sales == 0:
+        return company_names, [0] * len(company_names), [0] * len(company_names)
+
+    # 売上割合（%）を計算
+    sales_percentages = [
+        int((amount / total_sales * 100).quantize(Decimal("1")))
+        for amount in sales_amounts
+    ]
+
+    # 累積売上割合（%）を計算
+    cumulative_percentages = []
+    cumulative = 0
+    for percentage in sales_percentages:
+        cumulative += percentage
+        cumulative_percentages.append(cumulative)
+
+    return company_names, sales_percentages, cumulative_percentages

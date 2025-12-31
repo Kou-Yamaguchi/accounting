@@ -1,0 +1,13 @@
+<!-- 取引先追加編集フォーム -->
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+<h1>取引先の追加・編集</h1>
+<form method="post">
+  {% csrf_token %}
+  {% bootstrap_form form %}
+  {% bootstrap_button button_type="submit" content="保存" %}
+</form>
+<a href="{% url 'company_list' %}">Back to Company List</a>
+{% endblock %}

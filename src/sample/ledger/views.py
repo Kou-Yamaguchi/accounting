@@ -22,7 +22,7 @@ from django.db import transaction
 from django.core.exceptions import ImproperlyConfigured
 from openpyxl import Workbook
 
-from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseDetail
+from ledger.models import JournalEntry, Account, Company, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import (
     YearMonth,
@@ -40,6 +40,8 @@ from ledger.services import (
     calc_recent_half_year_sales,
     calc_monthly_profit,
     calc_recent_half_year_profits,
+    get_company_sales_last_month,
+    prepare_pareto_chart_data,
 )
 from enums.error_messages import ErrorMessages
 
@@ -147,6 +149,31 @@ class AccountDeleteView(DeleteView):
     model = Account
     template_name = "ledger/account_confirm_delete.html"
     success_url = reverse_lazy("account_list")
+
+
+class CompanyCreateView(CreateView):
+    model = Company
+    fields = ["name"]
+    template_name = "ledger/company/form.html"
+    success_url = reverse_lazy("company_list")
+
+class CompanyListView(ListView):
+    model = Company
+    template_name = "ledger/company/list.html"
+    context_object_name = "companies"
+
+
+class CompanyUpdateView(UpdateView):
+    model = Company
+    fields = ["name"]
+    template_name = "ledger/company/form.html"
+    success_url = reverse_lazy("company_list")
+
+
+class CompanyDeleteView(DeleteView):
+    model = Company
+    template_name = "ledger/company/confirm_delete.html"
+    success_url = reverse_lazy("company_list")
 
 
 class JournalEntryListView(ListView):
@@ -263,25 +290,6 @@ class GeneralLedgerView(TemplateView):
     template_name = (
         "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
     )
-
-    # def _collect_account_set_from_je(
-    #     self, je: JournalEntry, is_debit: bool
-    # ) -> set[Account]:
-    #     """
-    #     取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
-
-    #     注意: 事前にprefetch_relatedでDebit/Creditをprefetched_debits/prefetched_creditsとして設定しておく必要があります。
-    #     Args:
-    #         je (JournalEntry): 仕訳エントリ
-    #         is_debit (bool): 借方勘定科目を収集するかどうか
-
-    #     Returns:
-    #         set[Account]: 収集された勘定科目のセット
-    #     """
-    #     if is_debit:
-    #         return set(debit.account for debit in je.prefetched_debits)
-    #     else:
-    #         return set(credit.account for credit in je.prefetched_credits)
 
     def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
         """
@@ -1091,6 +1099,10 @@ class DashboardView(TemplateView):
             "template": "ledger/dashboard/expense_breakdown_chart.html",
             "context": "get_expense_breakdown_context",
         },
+        "pareto_sales_chart": {
+            "template": "ledger/dashboard/pareto_sales_chart.html",
+            "context": "get_pareto_sales_context",
+        },
     }
 
     def get_context_data(self, **kwargs):
@@ -1103,6 +1115,7 @@ class DashboardView(TemplateView):
 
         context.update(self.get_sales_chart_context())
         context.update(self.get_expense_breakdown_context())
+        context.update(self.get_pareto_sales_context())
         return context
 
     def get(self, request, *args, **kwargs):
@@ -1162,24 +1175,10 @@ class DashboardView(TemplateView):
             "expense_breakdown_labels": json.dumps(labels),
             "expense_breakdown_data": json.dumps(expense_data),
         }
-
-    def get_pareto_sales_data(self) -> tuple[list[str], list[int]]:
-        """売上のパレート分布データを取得するユーティリティメソッド。
-
-        Returns:
-            tuple: (ラベルリスト, 売上データリスト)
-        """
-        last_month_range: DayRange = get_month_range(get_last_year_month())
-        pareto_sales_data: list[tuple[str, Decimal]] = calc_pareto_sales(
-            last_month_range
-        )
-        labels = [entry[0] for entry in pareto_sales_data]
-        sales_data = list_decimal_to_int([entry[1] for entry in pareto_sales_data])
-        list_cumulative_sales = []
-        return labels, sales_data, list_cumulative_sales
     
     def get_pareto_sales_context(self) -> dict:
-        labels, sales_data, list_cumulative_sales = self.get_pareto_sales_data()
+        company_sales: dict[str, Decimal] = get_company_sales_last_month()
+        labels, sales_data, list_cumulative_sales = prepare_pareto_chart_data(company_sales)
         return {
             "pareto_sales_labels": json.dumps(labels),
             "pareto_sales_data": json.dumps(sales_data),
