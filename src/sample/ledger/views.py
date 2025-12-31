@@ -178,7 +178,7 @@ class CompanyDeleteView(DeleteView):
 
 class JournalEntryListView(ListView):
     model = JournalEntry
-    template_name = "ledger/journal_entry_list.html"
+    template_name = "ledger/journal_entry/list.html"
     context_object_name = "journal_entries"
 
 
@@ -258,20 +258,20 @@ class JournalEntryFormMixin:
 class JournalEntryCreateView(JournalEntryFormMixin, CreateView):
     model = JournalEntry
     form_class = JournalEntryForm
-    template_name = "ledger/journal_entry_form.html"
+    template_name = "ledger/journal_entry/form.html"
     success_url = reverse_lazy("journal_entry_list")
 
 
 class JournalEntryUpdateView(JournalEntryFormMixin, UpdateView):
     model = JournalEntry
     form_class = JournalEntryForm
-    template_name = "ledger/journal_entry_form.html"
+    template_name = "ledger/journal_entry/form.html"
     success_url = reverse_lazy("journal_entry_list")
 
 
 class JournalEntryDeleteView(DeleteView):
     model = JournalEntry
-    template_name = "ledger/journal_entry_confirm_delete.html"
+    template_name = "ledger/journal_entry/confirm_delete.html"
     success_url = reverse_lazy("journal_entry_list")
 
 

@@ -168,7 +168,7 @@ class JournalEntryViewTest(TestCase):
 
     def test_journal_entry_list_view(self):
         response = self.client.get(reverse("journal_entry_list"))
-        self.assertTemplateUsed(response, "ledger/journal_entry_list.html")
+        self.assertTemplateUsed(response, "ledger/journal_entry/list.html")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "初期取引")
 
