@@ -753,7 +753,7 @@ class BalanceSheetView(FinancialStatementView):
 class ProfitAndLossView(FinancialStatementView):
     """損益計算書ビュー"""
 
-    template_name = "ledger/profit_and_loss_table.html"
+    template_name = "ledger/profit_and_loss/table.html"
     ACCOUNT_TYPES = ["revenue", "expense"]
     DEBIT_TYPES = ["expense"]
     CREDIT_TYPES = ["revenue"]
