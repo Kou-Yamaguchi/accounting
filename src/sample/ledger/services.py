@@ -16,6 +16,29 @@ class YearMonth:
     month: int
 
 
+def get_current_year_month() -> YearMonth:
+    """
+    現在の日付からYearMonthオブジェクトを生成して返します。
+
+    Returns:
+        YearMonth: 現在の年と月を持つYearMonthオブジェクト
+    """
+    today = date.today()
+    return YearMonth(year=today.year, month=today.month)
+
+
+def get_last_year_month() -> YearMonth:
+    """
+    現在の日付の1ヶ月前のYearMonthオブジェクトを生成して返します。
+
+    Returns:
+        YearMonth: 1ヶ月前の年と月を持つYearMonthオブジェクト
+    """
+    today = date.today()
+    last_month_date = today - relativedelta(months=1)
+    return YearMonth(year=last_month_date.year, month=last_month_date.month)
+
+
 def decimal_to_int(value: Decimal) -> int:
     """
     Decimal型の金額をint型に変換します。

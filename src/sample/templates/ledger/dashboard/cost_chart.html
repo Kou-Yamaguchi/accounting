@@ -1,0 +1,17 @@
+<canvas id="costChart"></canvas>
+
+<script>
+  (() => {
+    const ctx = document.getElementById("costChart").getContext("2d");
+    costChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: {{ expense_breakdown_labels| safe }},
+        datasets: [{data: {{ expense_breakdown_data| safe }}}]
+      },
+      options: {
+        responsive: true
+      }
+    });
+  }) ();
+</script>

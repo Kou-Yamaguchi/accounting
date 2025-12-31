@@ -127,7 +127,9 @@
     </div>
     <div class="card">
       <h2>費用内訳</h2>
-      <canvas id="costChart"></canvas>
+      <div id="cost_chart">
+        {% include "ledger/dashboard/cost_chart.html" %}
+      </div>
     </div>
   </div>
 
@@ -146,15 +148,6 @@
 </div>
 
 <script>
-  // 費用内訳
-  new Chart(document.getElementById('costChart'), {
-    type: 'doughnut',
-    data: {
-      labels: ['通信費', 'クラウド', '書籍', '交通費'],
-      datasets: [{ data: [120, 200, 60, 40] }]
-    }
-  });
-
   // トレンド分析
   new Chart(document.getElementById('trendChart'), {
     type: 'line',

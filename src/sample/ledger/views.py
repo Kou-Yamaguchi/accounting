@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from calendar import monthrange
 from dataclasses import dataclass
 from itertools import zip_longest
+from operator import attrgetter
 import json
 
 from django.shortcuts import render, get_object_or_404
@@ -25,10 +26,12 @@ from ledger.models import JournalEntry, Account, Entry, Debit, Credit, PurchaseD
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
 from ledger.services import (
     YearMonth,
+    get_last_year_month,
     decimal_to_int,
     list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
+    get_month_range,
     DayRange,
     calculate_account_total,
     calc_monthly_sales,
@@ -63,12 +66,12 @@ class AccountWithTotal:
 
 
 def calc_each_account_totals(
-    fiscal_range: DayRange, pop_list: list[str] = None
+    day_range: DayRange, pop_list: list[str] = None
 ) -> list[AccountWithTotal]:
     """全ての勘定科目の合計金額を計算するユーティリティ関数。
 
     Args:
-        fiscal_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
         pop_list (list[str]|None): 対象とする勘定科目タイプのリスト。デフォルトはNone（全ての勘定科目を対象）
 
     Returns:
@@ -80,7 +83,7 @@ def calc_each_account_totals(
         accounts = [acc for acc in get_all_account_objects() if acc.type in pop_list]
 
     account_totals: list[AccountWithTotal] = [
-        AccountWithTotal(account, calculate_account_total(account, fiscal_range))
+        AccountWithTotal(account, calculate_account_total(account, day_range))
         for account in accounts
     ]
     return account_totals
@@ -1108,6 +1111,10 @@ class DashboardView(TemplateView):
             "template": "ledger/dashboard/sales_chart.html",
             "context": "get_sales_chart_context",
         },
+        "cost_chart": {
+            "template": "ledger/dashboard/expense_breakdown_chart.html",
+            "context": "get_expense_breakdown_context",
+        },
     }
 
     def get_context_data(self, **kwargs):
@@ -1119,6 +1126,7 @@ class DashboardView(TemplateView):
         context["monthly_profit"] = calc_monthly_profit(current_year_month)
 
         context.update(self.get_sales_chart_context())
+        context.update(self.get_expense_breakdown_context())
         return context
 
     def get(self, request, *args, **kwargs):
@@ -1154,8 +1162,21 @@ class DashboardView(TemplateView):
     
     
     def _get_expense_breakdown_data(self) -> tuple[list[str], list[int]]:
-        
-        labels, expense_data = calc_expense_breakdown_last_month()
+        last_month_range: DayRange = get_month_range(get_last_year_month())
+        list_total_expense_by_account: list[AccountWithTotal] = calc_each_account_totals(last_month_range, ["expense"])
+        sorted_list_total_expense_by_account= sorted(
+            list_total_expense_by_account,
+            key=attrgetter("total_amount"),
+            reverse=True
+        )
+        labels = [
+            account_total.account_object.name
+            for account_total in sorted_list_total_expense_by_account
+        ]
+        expense_data = [
+            account_total.total_amount
+            for account_total in sorted_list_total_expense_by_account
+        ]
         expense_data_int = list_decimal_to_int(expense_data)
         return labels, expense_data_int
 
