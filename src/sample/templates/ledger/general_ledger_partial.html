@@ -1,3 +1,5 @@
+{% load mathfilters %}
+
 <table class="table table-striped">
   <thead>
     <tr>
@@ -5,6 +7,7 @@
       <th>摘要</th>
       <th>借方金額</th>
       <th>貸方金額</th>
+      <th>借/貸</th>
       <th>残高</th>
     </tr>
   </thead>
@@ -15,7 +18,12 @@
       <td>{{ entry.counter_party }}</td>
       <td>{{ entry.debit_amount|default:"-" }}</td>
       <td>{{ entry.credit_amount|default:"-" }}</td>
-      <td>{{ entry.running_balance }}</td>
+      {% if entry.running_balance >= 0 %}
+      <td>借</td>
+      {% else %}
+      <td>貸</td>
+      {% endif %}
+      <td>{{ entry.running_balance|abs }}</td>
     </tr>
     {% endfor %}
   </tbody>

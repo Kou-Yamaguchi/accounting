@@ -1186,3 +1186,26 @@ class DashboardView(TemplateView):
             "expense_breakdown_labels": json.dumps(labels),
             "expense_breakdown_data": json.dumps(expense_data),
         }
+
+    def get_pareto_sales_data(self) -> tuple[list[str], list[int]]:
+        """売上のパレート分布データを取得するユーティリティメソッド。
+
+        Returns:
+            tuple: (ラベルリスト, 売上データリスト)
+        """
+        last_month_range: DayRange = get_month_range(get_last_year_month())
+        pareto_sales_data: list[tuple[str, Decimal]] = calc_pareto_sales(
+            last_month_range
+        )
+        labels = [entry[0] for entry in pareto_sales_data]
+        sales_data = list_decimal_to_int([entry[1] for entry in pareto_sales_data])
+        list_cumulative_sales = []
+        return labels, sales_data, list_cumulative_sales
+    
+    def get_pareto_sales_context(self) -> dict:
+        labels, sales_data, list_cumulative_sales = self.get_pareto_sales_data()
+        return {
+            "pareto_sales_labels": json.dumps(labels),
+            "pareto_sales_data": json.dumps(sales_data),
+            "pareto_sales_cumulative_data": json.dumps(list_cumulative_sales),
+        }
