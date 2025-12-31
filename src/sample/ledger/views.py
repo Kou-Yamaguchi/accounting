@@ -34,6 +34,7 @@ from ledger.services import (
     get_month_range,
     DayRange,
     get_all_journal_entries_for_account,
+    collect_account_set_from_je,
     calculate_account_total,
     calc_monthly_sales,
     calc_recent_half_year_sales,
@@ -263,16 +264,24 @@ class GeneralLedgerView(TemplateView):
         "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
     )
 
-    def _collect_account_set_from_je(
-        self, je: JournalEntry, is_debit: bool
-    ) -> set[Account]:
-        """
-        取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
-        """
-        if is_debit:
-            return set(debit.account for debit in je.prefetched_debits)
-        else:
-            return set(credit.account for credit in je.prefetched_credits)
+    # def _collect_account_set_from_je(
+    #     self, je: JournalEntry, is_debit: bool
+    # ) -> set[Account]:
+    #     """
+    #     取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
+
+    #     注意: 事前にprefetch_relatedでDebit/Creditをprefetched_debits/prefetched_creditsとして設定しておく必要があります。
+    #     Args:
+    #         je (JournalEntry): 仕訳エントリ
+    #         is_debit (bool): 借方勘定科目を収集するかどうか
+
+    #     Returns:
+    #         set[Account]: 収集された勘定科目のセット
+    #     """
+    #     if is_debit:
+    #         return set(debit.account for debit in je.prefetched_debits)
+    #     else:
+    #         return set(credit.account for credit in je.prefetched_credits)
 
     def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
         """
@@ -348,10 +357,10 @@ class GeneralLedgerView(TemplateView):
 
         for je in journal_entries:
             # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits: set[Account] = self._collect_account_set_from_je(
+            all_debits: set[Account] = collect_account_set_from_je(
                 je, is_debit=True
             )
-            all_credits: set[Account] = self._collect_account_set_from_je(
+            all_credits: set[Account] = collect_account_set_from_je(
                 je, is_debit=False
             )
 

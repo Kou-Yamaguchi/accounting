@@ -154,6 +154,25 @@ def get_all_journal_entries_for_account(
     )
     return journal_entries
 
+def collect_account_set_from_je(
+    je: JournalEntry, is_debit: bool
+) -> set[Account]:
+    """
+    取引に含まれる勘定科目をEntryごとに収集するユーティリティメソッド。
+
+    注意: 事前にprefetch_relatedでDebit/Creditをprefetched_debits/prefetched_creditsとして設定しておく必要があります。
+    Args:
+        je (JournalEntry): 仕訳エントリ
+        is_debit (bool): 借方勘定科目を収集するかどうか
+
+    Returns:
+        set[Account]: 収集された勘定科目のセット
+    """
+    if is_debit:
+        return set(debit.account for debit in je.prefetched_debits)
+    else:
+        return set(credit.account for credit in je.prefetched_credits)
+
 
 def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
     """
