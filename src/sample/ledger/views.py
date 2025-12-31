@@ -128,26 +128,26 @@ class PurchaseBook:
 class AccountCreateView(CreateView):
     model = Account
     fields = ["name", "type"]
-    template_name = "ledger/account_form.html"
+    template_name = "ledger/account/form.html"
     success_url = reverse_lazy("account_list")
 
 
 class AccountListView(ListView):
     model = Account
-    template_name = "ledger/account_list.html"
+    template_name = "ledger/account/list.html"
     context_object_name = "accounts"
 
 
 class AccountUpdateView(UpdateView):
     model = Account
     fields = ["name", "type"]
-    template_name = "ledger/account_form.html"
+    template_name = "ledger/account/form.html"
     success_url = reverse_lazy("account_list")
 
 
 class AccountDeleteView(DeleteView):
     model = Account
-    template_name = "ledger/account_confirm_delete.html"
+    template_name = "ledger/account/confirm_delete.html"
     success_url = reverse_lazy("account_list")
 
 
