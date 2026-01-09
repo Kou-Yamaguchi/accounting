@@ -353,7 +353,7 @@ class GeneralLedgerViewTest(TestCase):
         self.accounts_payable = self.accounts["買掛金"]
         self.supplies = self.accounts["消耗品"]
         # テスト対象のビューにアクセスするためのURLを準備
-        self.url_template = "/ledger/{account_name}/"
+        self.url_template = "/ledger/general_ledger/content/?account_name={account_name}"
 
     # ----------------------------------------------------
     # 1. 1 vs 1 (単純仕訳) のテスト
