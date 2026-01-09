@@ -168,7 +168,7 @@ class JournalEntryViewTest(TestCase):
 
     def test_journal_entry_list_view(self):
         response = self.client.get(reverse("journal_entry_list"))
-        self.assertTemplateUsed(response, "ledger/journal_entry_list.html")
+        self.assertTemplateUsed(response, "ledger/journal_entry/list.html")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "初期取引")
 
@@ -353,7 +353,7 @@ class GeneralLedgerViewTest(TestCase):
         self.accounts_payable = self.accounts["買掛金"]
         self.supplies = self.accounts["消耗品"]
         # テスト対象のビューにアクセスするためのURLを準備
-        self.url_template = "/ledger/{account_name}/"
+        self.url_template = "/ledger/general_ledger/content/?account_name={account_name}"
 
     # ----------------------------------------------------
     # 1. 1 vs 1 (単純仕訳) のテスト

@@ -128,26 +128,26 @@ class PurchaseBook:
 class AccountCreateView(CreateView):
     model = Account
     fields = ["name", "type"]
-    template_name = "ledger/account_form.html"
+    template_name = "ledger/account/form.html"
     success_url = reverse_lazy("account_list")
 
 
 class AccountListView(ListView):
     model = Account
-    template_name = "ledger/account_list.html"
+    template_name = "ledger/account/list.html"
     context_object_name = "accounts"
 
 
 class AccountUpdateView(UpdateView):
     model = Account
     fields = ["name", "type"]
-    template_name = "ledger/account_form.html"
+    template_name = "ledger/account/form.html"
     success_url = reverse_lazy("account_list")
 
 
 class AccountDeleteView(DeleteView):
     model = Account
-    template_name = "ledger/account_confirm_delete.html"
+    template_name = "ledger/account/confirm_delete.html"
     success_url = reverse_lazy("account_list")
 
 
@@ -178,7 +178,7 @@ class CompanyDeleteView(DeleteView):
 
 class JournalEntryListView(ListView):
     model = JournalEntry
-    template_name = "ledger/journal_entry_list.html"
+    template_name = "ledger/journal_entry/list.html"
     context_object_name = "journal_entries"
 
 
@@ -258,20 +258,20 @@ class JournalEntryFormMixin:
 class JournalEntryCreateView(JournalEntryFormMixin, CreateView):
     model = JournalEntry
     form_class = JournalEntryForm
-    template_name = "ledger/journal_entry_form.html"
+    template_name = "ledger/journal_entry/form.html"
     success_url = reverse_lazy("journal_entry_list")
 
 
 class JournalEntryUpdateView(JournalEntryFormMixin, UpdateView):
     model = JournalEntry
     form_class = JournalEntryForm
-    template_name = "ledger/journal_entry_form.html"
+    template_name = "ledger/journal_entry/form.html"
     success_url = reverse_lazy("journal_entry_list")
 
 
 class JournalEntryDeleteView(DeleteView):
     model = JournalEntry
-    template_name = "ledger/journal_entry_confirm_delete.html"
+    template_name = "ledger/journal_entry/confirm_delete.html"
     success_url = reverse_lazy("journal_entry_list")
 
 
@@ -349,7 +349,8 @@ class GeneralLedgerView(TemplateView):
         context = super().get_context_data(**kwargs)
 
         # URLから勘定科目名を取得
-        account_name: str = self.kwargs["account_name"]
+        account_name: str =self.request.GET.get("account_name","")
+        # account_name: str = self.kwargs["account_name"]
 
         # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
         account: Account = get_object_or_404(Account, name=account_name)
@@ -724,7 +725,7 @@ class TrialBalanceView(FinancialStatementView):
 class BalanceSheetView(FinancialStatementView):
     """貸借対照表ビュー"""
 
-    template_name = "ledger/balance_sheet_table.html"
+    template_name = "ledger/balance_sheet/table.html"
     ACCOUNT_TYPES = ["asset", "liability", "equity"]
     DEBIT_TYPES = ["asset"]
     CREDIT_TYPES = ["liability", "equity"]
@@ -753,7 +754,7 @@ class BalanceSheetView(FinancialStatementView):
 class ProfitAndLossView(FinancialStatementView):
     """損益計算書ビュー"""
 
-    template_name = "ledger/profit_and_loss_table.html"
+    template_name = "ledger/profit_and_loss/table.html"
     ACCOUNT_TYPES = ["revenue", "expense"]
     DEBIT_TYPES = ["expense"]
     CREDIT_TYPES = ["revenue"]
