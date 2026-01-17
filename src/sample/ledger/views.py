@@ -24,15 +24,23 @@ from openpyxl import Workbook
 
 from ledger.models import JournalEntry, Account, Company, Entry, Debit, Credit, PurchaseDetail
 from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
-from ledger.services import (
+from ledger.structures import (
+    AccountWithTotal,
+    ClosingEntry,
+    PurchaseItem,
+    PurchaseBookEntry,
+    PurchaseBook,
     YearMonth,
+    DayRange,
+    FinancialStatementEntry,
+)
+from ledger.services import (
     get_last_year_month,
     decimal_to_int,
     list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
     get_month_range,
-    DayRange,
     get_all_journal_entries_for_account,
     collect_account_set_from_je,
     calculate_account_total,
@@ -63,12 +71,6 @@ def get_account_object_by_type(account_type: str) -> list[Account]:
     return list(Account.objects.filter(type=account_type).order_by("name"))
 
 
-@dataclass
-class AccountWithTotal:
-    account_object: Account
-    total_amount: Decimal
-
-
 def calc_each_account_totals(
     day_range: DayRange, pop_list: list[str] = None
 ) -> list[AccountWithTotal]:
@@ -91,38 +93,6 @@ def calc_each_account_totals(
         for account in accounts
     ]
     return account_totals
-
-
-@dataclass
-class ClosingEntry:
-    total_purchase: int
-    total_returns: int
-    net_purchase: int
-
-
-@dataclass
-class PurchaseItem:
-    name: str
-    quantity: int
-    unit_price: int
-
-
-@dataclass
-class PurchaseBookEntry:
-    date: date
-    company: str
-    items: list[PurchaseItem]
-    counter_account: str
-    is_return: bool
-    total_amount: int
-
-
-@dataclass
-class PurchaseBook:
-    date: YearMonth
-    book_entries: list[PurchaseBookEntry]  # List of PurchaseBookEntry instances
-    closing_entry: ClosingEntry = None
-    error: str = None
 
 
 class AccountCreateView(CreateView):
@@ -401,15 +371,6 @@ class GeneralLedgerView(TemplateView):
         context["ledger_entries"] = ledger_entries
 
         return context
-
-
-@dataclass
-class FinancialStatementEntry:
-    """財務諸表エントリの共通データクラス"""
-
-    name: str
-    type: str
-    total: Decimal
 
 
 class FinancialStatementView(View):

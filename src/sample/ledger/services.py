@@ -1,7 +1,6 @@
 from decimal import Decimal
 from datetime import date
 from typing import Literal
-from dataclasses import dataclass
 
 from dateutil.relativedelta import relativedelta
 from django.db.models import Q, Prefetch
@@ -18,12 +17,7 @@ from .models import (
     Item,
     Company,
 )
-
-
-@dataclass
-class YearMonth:
-    year: int
-    month: int
+from ledger.structures import YearMonth, DayRange
 
 
 def get_current_year_month() -> YearMonth:
@@ -75,12 +69,6 @@ def list_decimal_to_int(values: list[Decimal]) -> list[int]:
         list[int]: 変換後のint値のリスト
     """
     return [decimal_to_int(value) for value in values]
-
-
-@dataclass
-class DayRange:
-    start: date
-    end: date
 
 
 def get_fiscal_range(year: int, start_month: int = 4, months: int = 12) -> DayRange:
