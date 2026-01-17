@@ -36,14 +36,13 @@ from ledger.structures import (
 )
 from ledger.services import (
     get_last_year_month,
-    decimal_to_int,
     list_decimal_to_int,
     calculate_monthly_balance,
     get_fiscal_range,
     get_month_range,
     get_all_journal_entries_for_account,
+    calc_each_account_totals,
     collect_account_set_from_je,
-    calculate_account_total,
     calc_monthly_sales,
     calc_recent_half_year_sales,
     calc_monthly_profit,
@@ -52,47 +51,6 @@ from ledger.services import (
     prepare_pareto_chart_data,
 )
 from enums.error_messages import ErrorMessages
-
-
-def get_all_account_objects() -> list[Account]:
-    """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
-    return list(Account.objects.all().order_by("type", "name"))
-
-
-def get_account_object_by_type(account_type: str) -> list[Account]:
-    """指定されたタイプの勘定科目オブジェクトを取得するユーティリティ関数。
-
-    Args:
-        account_type (str): 勘定科目タイプ（例："asset", "liability", "equity", "revenue", "expense"）
-
-    Returns:
-        list[Account]: 指定されたタイプのAccountオブジェクトのリスト
-    """
-    return list(Account.objects.filter(type=account_type).order_by("name"))
-
-
-def calc_each_account_totals(
-    day_range: DayRange, pop_list: list[str] = None
-) -> list[AccountWithTotal]:
-    """全ての勘定科目の合計金額を計算するユーティリティ関数。
-
-    Args:
-        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
-        pop_list (list[str]|None): 対象とする勘定科目タイプのリスト。デフォルトはNone（全ての勘定科目を対象）
-
-    Returns:
-        list[AccountWithTotal]: List of AccountWithTotal instances
-    """
-    if pop_list is None:
-        accounts = get_all_account_objects()
-    else:
-        accounts = [acc for acc in get_all_account_objects() if acc.type in pop_list]
-
-    account_totals: list[AccountWithTotal] = [
-        AccountWithTotal(account, calculate_account_total(account, day_range))
-        for account in accounts
-    ]
-    return account_totals
 
 
 class AccountCreateView(CreateView):
