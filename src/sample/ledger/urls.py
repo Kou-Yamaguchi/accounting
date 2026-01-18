@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import TemplateView
 
-from ledger.views import (
+from ledger.views.views import (
     AccountListView,
     AccountCreateView,
     AccountUpdateView,

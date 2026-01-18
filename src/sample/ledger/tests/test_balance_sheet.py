@@ -6,7 +6,7 @@ from django.test import TestCase, RequestFactory
 from ledger.models import Account
 # TODO: Adjust import according to your project structure
 # from ledger.views.balance_sheet import BalanceSheetView
-from ledger.views import BalanceSheetView
+from ledger.views.views import BalanceSheetView
 from ledger.tests.utils import create_journal_entry, create_accounts, AccountData
 
 

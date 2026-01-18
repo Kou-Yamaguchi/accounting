@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase, RequestFactory
 
 from ledger.tests.utils import create_accounts, create_journal_entry, AccountData
-from ledger.views import DashboardView
+from ledger.views.views import DashboardView
 
 
 class DashboardViewTest(TestCase):
@@ -110,7 +110,7 @@ class DashboardViewTest(TestCase):
 
     def test_sales_chart_data_structure(self):
         """売上・利益推移グラフ用データの構造が正しいことを確認"""
-        from ledger.views import DashboardView
+        from ledger.views.views import DashboardView
         import json
 
         request = self.factory.get("/ledger/dashboard/")
@@ -142,7 +142,7 @@ class DashboardViewTest(TestCase):
 
     def test_recent_half_year_sales_and_profit_trend(self):
         """直近半年間の売上・利益推移が正しく計算されることを確認"""
-        from ledger.views import DashboardView
+        from ledger.views.views import DashboardView
         import json
         from dateutil.relativedelta import relativedelta
 

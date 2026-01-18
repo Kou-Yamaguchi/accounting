@@ -13,7 +13,7 @@ from ledger.models import (
     PurchaseDetail,
     Company,
 )
-from ledger.views import (
+from ledger.views.views import (
     PurchaseBookView,
     PurchaseBookEntry,
 )
