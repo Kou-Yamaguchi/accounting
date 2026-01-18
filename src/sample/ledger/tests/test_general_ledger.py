@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase, RequestFactory
 
 from ledger.models import Account
-from ledger.views import GeneralLedgerView
+from ledger.views.views import GeneralLedgerView
 from ledger.tests.utils import create_accounts, create_journal_entry, AccountData
 
 

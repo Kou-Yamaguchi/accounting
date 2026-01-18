@@ -13,10 +13,8 @@ from ledger.models import (
     PurchaseDetail,
     Company,
 )
-from ledger.views import (
-    PurchaseBookView,
-    PurchaseBookEntry,
-)
+from ledger.structures import PurchaseBookEntry
+from ledger.views.purchasebook import PurchaseBookView
 from ledger.services import calculate_monthly_balance
 from ledger.tests.utils import create_accounts, create_journal_entry, AccountData
 

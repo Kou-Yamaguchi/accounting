@@ -5,7 +5,7 @@ from django.test import TestCase, RequestFactory
 
 # TODO: Adjust the import path as necessary based on your project structure
 # from ledger.views.profit_and_loss import ProfitAndLossView
-from ledger.views import ProfitAndLossView
+from ledger.views.financial_statement import ProfitAndLossView
 from ledger.tests.utils import create_accounts, create_journal_entry
 from ledger.tests.utils import AccountData
 
