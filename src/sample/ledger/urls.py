@@ -7,6 +7,7 @@ from ledger.views.cashbook import (
     CurrentAccountCashBookView,
     PettyCashBookView,
 )
+from ledger.views.purchasebook import PurchaseBookView
 from ledger.views.views import (
     AccountListView,
     AccountCreateView,
@@ -25,7 +26,6 @@ from ledger.views.views import (
     TrialBalanceView,
     BalanceSheetView,
     ProfitAndLossView,
-    PurchaseBookView,
 )
 
 urlpatterns = [
