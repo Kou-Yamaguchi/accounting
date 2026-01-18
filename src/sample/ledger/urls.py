@@ -2,6 +2,11 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from ledger.views.dashboard import DashboardView
+from ledger.views.financial_statement import (
+    BalanceSheetView,
+    ProfitAndLossView,
+    TrialBalanceView,
+)
 from ledger.views.cashbook import (
     CashBookView,
     CurrentAccountCashBookView,
@@ -23,9 +28,6 @@ from ledger.views.views import (
     JournalEntryDeleteView,
     LedgerSelectView,
     GeneralLedgerView,
-    TrialBalanceView,
-    BalanceSheetView,
-    ProfitAndLossView,
 )
 
 urlpatterns = [
