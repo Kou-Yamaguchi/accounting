@@ -2,6 +2,11 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from ledger.views.dashboard import DashboardView
+from ledger.views.cashbook import (
+    CashBookView,
+    CurrentAccountCashBookView,
+    PettyCashBookView,
+)
 from ledger.views.views import (
     AccountListView,
     AccountCreateView,
@@ -20,9 +25,6 @@ from ledger.views.views import (
     TrialBalanceView,
     BalanceSheetView,
     ProfitAndLossView,
-    CashBookView,
-    CurrentAccountCashBookView,
-    PettyCashBookView,
     PurchaseBookView,
 )
 
