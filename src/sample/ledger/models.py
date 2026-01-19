@@ -3,6 +3,41 @@ from datetime import date, datetime
 from django.conf import settings
 from django.db import models
 
+
+class FiscalPeriod(models.Model):
+    """
+    会計期間を管理するモデル。
+    """
+    
+    name = models.CharField(max_length=100, unique=True, verbose_name="会計期間名", null=False)
+    start_date = models.DateField(null=False, verbose_name="会計期間開始日")
+    end_date = models.DateField(null=False, verbose_name="会計期間終了日")
+    is_closed = models.BooleanField(null=False, default=False, verbose_name="締め済みフラグ")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="fiscalperiods_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="fiscalperiods_updated",
+    )
+
+    class Meta:
+        verbose_name = "Fiscal Period"
+        verbose_name_plural = "Fiscal Periods"
+
+    def __str__(self):
+        return f"{self.start_date} to {self.end_date}"
+
+
 ACCOUNT_TYPE_CHOICES = [
     ("asset", "資産"),
     ("liability", "負債"),
@@ -20,6 +55,7 @@ class Account(models.Model):
     name = models.CharField(max_length=200, unique=True)
     type = models.CharField(max_length=64, choices=ACCOUNT_TYPE_CHOICES, null=False)
     is_default = models.BooleanField(default=False)
+    is_adjustment_only = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
@@ -74,6 +110,13 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
+    
+
+ENTRY_TYPE_CHOICES = [
+    ('normal', '通常仕訳'),
+    ('adjustment', '決算整理仕訳'),
+    ('closing', '決算振替仕訳'),
+]
 
 
 class JournalEntry(models.Model):
@@ -81,8 +124,9 @@ class JournalEntry(models.Model):
     journal_entries (取引) — 仕訳ヘッダ
     """
 
-    date = models.DateField()
-    summary = models.TextField(blank=True)
+    date = models.DateField(null=False, verbose_name="取引日")
+    summary = models.TextField(blank=True, verbose_name="摘要")
+    entry_type = models.CharField(max_length=32, choices=ENTRY_TYPE_CHOICES, default='normal', verbose_name="仕訳タイプ")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     company = models.ForeignKey(
@@ -91,6 +135,15 @@ class JournalEntry(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="companies",
+    )
+    fiscal_period = models.ForeignKey(
+        FiscalPeriod,
+        # TODO: null許容を外す
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="journal_entries",
+        verbose_name="会計期間",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -111,6 +164,15 @@ class JournalEntry(models.Model):
         verbose_name = "Journal Entry"
         verbose_name_plural = "Journal Entries"
         ordering = ["-date", "-created_at"]
+        # constraints = [
+        #     models.CheckConstraint(
+        #         check=~(
+        #             models.Q(entry_type__in=['adjustment', 'closing']) &
+        #             ~models.Q(date=models.F('fiscal_period__end_date'))
+        #         ),
+        #         name='adjustment_closing_must_be_end_date'
+        #     )
+        # ]
 
     def __str__(self):
         return f"{self.date} — {self.summary[:50]}"
