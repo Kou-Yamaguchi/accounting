@@ -1,18 +1,24 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Sum
 
 
 class FiscalPeriod(models.Model):
     """
     会計期間を管理するモデル。
     """
-    
-    name = models.CharField(max_length=100, unique=True, verbose_name="会計期間名", null=False)
+
+    name = models.CharField(
+        max_length=100, unique=True, verbose_name="会計期間名", null=False
+    )
     start_date = models.DateField(null=False, verbose_name="会計期間開始日")
     end_date = models.DateField(null=False, verbose_name="会計期間終了日")
-    is_closed = models.BooleanField(null=False, default=False, verbose_name="締め済みフラグ")
+    is_closed = models.BooleanField(
+        null=False, default=False, verbose_name="締め済みフラグ"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
     created_by = models.ForeignKey(
@@ -110,12 +116,12 @@ class Company(models.Model):
 
     def __str__(self):
         return self.name
-    
+
 
 ENTRY_TYPE_CHOICES = [
-    ('normal', '通常仕訳'),
-    ('adjustment', '決算整理仕訳'),
-    ('closing', '決算振替仕訳'),
+    ("normal", "通常仕訳"),
+    ("adjustment", "決算整理仕訳"),
+    ("closing", "決算振替仕訳"),
 ]
 
 
@@ -126,7 +132,12 @@ class JournalEntry(models.Model):
 
     date = models.DateField(null=False, verbose_name="取引日")
     summary = models.TextField(blank=True, verbose_name="摘要")
-    entry_type = models.CharField(max_length=32, choices=ENTRY_TYPE_CHOICES, default='normal', verbose_name="仕訳タイプ")
+    entry_type = models.CharField(
+        max_length=32,
+        choices=ENTRY_TYPE_CHOICES,
+        default="normal",
+        verbose_name="仕訳タイプ",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     company = models.ForeignKey(
@@ -176,12 +187,13 @@ class JournalEntry(models.Model):
 
     def __str__(self):
         return f"{self.date} — {self.summary[:50]}"
-    
+
 
 class Entry(models.Model):
     """
     抽象基底クラス: 仕訳の明細行 (借方・貸方) の共通部分を定義
     """
+
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -311,8 +323,11 @@ class SalesDetail(models.Model):
     """
     売上明細を管理するモデル。
     """
+
     quantity = models.IntegerField(verbose_name="数量")
-    unit_price = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="単価")
+    unit_price = models.DecimalField(
+        max_digits=14, decimal_places=2, verbose_name="単価"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
     item = models.ForeignKey(
@@ -358,7 +373,9 @@ class PurchaseDetail(models.Model):
     """
 
     quantity = models.IntegerField(verbose_name="数量")
-    unit_price = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="単価")
+    unit_price = models.DecimalField(
+        max_digits=14, decimal_places=2, verbose_name="単価"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
     item = models.ForeignKey(
@@ -396,3 +413,162 @@ class PurchaseDetail(models.Model):
 
     def __str__(self):
         return f"{self.item} - {self.quantity} - {self.unit_price}"
+
+
+class FixedAsset(models.Model):
+    """固定資産台帳"""
+
+    # 基本情報
+    name = models.CharField(max_length=255, verbose_name="資産名")
+    asset_number = models.CharField(max_length=50, unique=True, verbose_name="資産番号")
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.PROTECT,
+        limit_choices_to={"type": "asset"},
+        verbose_name="勘定科目",
+    )
+
+    # 取得情報
+    acquisition_date = models.DateField(verbose_name="取得日")
+    acquisition_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, verbose_name="取得価額"
+    )
+    acquisition_journal_entry = models.ForeignKey(
+        JournalEntry,
+        on_delete=models.PROTECT,
+        related_name="acquired_assets",
+        null=True,
+        blank=True,
+        verbose_name="取得仕訳",
+    )
+
+    # 償却情報
+    depreciation_method = models.CharField(
+        max_length=20,
+        choices=[
+            ("straight_line", "定額法"),
+            ("declining_balance", "定率法"),
+        ],
+        default="straight_line",
+        verbose_name="償却方法",
+    )
+    useful_life = models.IntegerField(verbose_name="耐用年数")
+    residual_value = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0, verbose_name="残存価額"
+    )
+
+    # ステータス
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("active", "使用中"),
+            ("disposed", "除却済"),
+            ("sold", "売却済"),
+        ],
+        default="active",
+        verbose_name="ステータス",
+    )
+    disposal_date = models.DateField(null=True, blank=True, verbose_name="除却/売却日")
+    disposal_journal_entry = models.ForeignKey(
+        JournalEntry,
+        on_delete=models.PROTECT,
+        related_name="disposed_assets",
+        null=True,
+        blank=True,
+        verbose_name="除却/売却仕訳",
+    )
+
+    # メタ情報
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name="会社")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="fixedassets_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="fixedassets_updated",
+    )
+
+    class Meta:
+        verbose_name = "固定資産"
+        verbose_name_plural = "固定資産台帳"
+        ordering = ["asset_number"]
+
+    def __str__(self):
+        return f"{self.asset_number} - {self.name}"
+
+    def calculate_annual_depreciation(self) -> Decimal:
+        """年間減価償却費を計算"""
+        if self.depreciation_method == "straight_line":
+            return (self.acquisition_cost - self.residual_value) / self.useful_life
+        # TODO: 定率法の計算も追加可能
+        return Decimal("0")
+
+    def get_accumulated_depreciation(self, as_of_date: date) -> Decimal:
+        """指定日時点での減価償却累計額を取得"""
+        total = self.depreciation_history.filter(
+            fiscal_period__end_date__lte=as_of_date
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        return total
+
+    def get_book_value(self, as_of_date: date) -> Decimal:
+        """帳簿価額を計算"""
+        accumulated = self.get_accumulated_depreciation(as_of_date)
+        return self.acquisition_cost - accumulated
+
+
+class DepreciationHistory(models.Model):
+    """減価償却の履歴を記録"""
+
+    fixed_asset = models.ForeignKey(
+        FixedAsset,
+        on_delete=models.CASCADE,
+        related_name="depreciation_history",
+        verbose_name="固定資産",
+    )
+    fiscal_period = models.ForeignKey(
+        FiscalPeriod, on_delete=models.PROTECT, verbose_name="会計期間"
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="償却額")
+    depreciation_journal_entry = models.OneToOneField(
+        JournalEntry,
+        on_delete=models.PROTECT,
+        related_name="depreciation_record",
+        null=True,
+        blank=True,
+        verbose_name="減価償却仕訳",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="depreciationhistories_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="depreciationhistories_updated",
+    )
+
+    class Meta:
+        verbose_name = "減価償却履歴"
+        verbose_name_plural = "減価償却履歴"
+        unique_together = [["fixed_asset", "fiscal_period"]]
+        ordering = ["-fiscal_period__end_date"]
+
+    def __str__(self):
+        return f"{self.fixed_asset.name} - {self.fiscal_period.name}: {self.amount}"
