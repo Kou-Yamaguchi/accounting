@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.shortcuts import render, get_object_or_404
+
 # from django.db.models import F, Q, Value, CharField, Prefetch, Sum
 from django.http import HttpResponse, HttpRequest
 from django.views.generic import (
@@ -14,8 +15,13 @@ from django.views.generic import (
 from django.urls import reverse_lazy
 from django.db import transaction
 
-from ledger.models import JournalEntry, Account, Company
-from ledger.forms import JournalEntryForm, DebitFormSet, CreditFormSet
+from ledger.models import JournalEntry, Account, Company, FixedAsset
+from ledger.forms import (
+    JournalEntryForm,
+    DebitFormSet,
+    CreditFormSet,
+    FixedAssetInlineForm,
+)
 from ledger.services import (
     get_all_journal_entries_for_account,
     collect_account_set_from_je,
@@ -54,6 +60,7 @@ class CompanyCreateView(CreateView):
     fields = ["name"]
     template_name = "ledger/company/form.html"
     success_url = reverse_lazy("company_list")
+
 
 class CompanyListView(ListView):
     model = Company
@@ -118,6 +125,13 @@ class JournalEntryFormMixin:
         debit_fs, credit_fs = self.get_formsets(post, instance)
         data["debit_formset"] = debit_fs
         data["credit_formset"] = credit_fs
+
+        # 固定資産フォームを追加
+        if post:
+            data["fixed_asset_form"] = FixedAssetInlineForm(post)
+        else:
+            data["fixed_asset_form"] = FixedAssetInlineForm()
+
         return data
 
     def form_valid(self, form):
@@ -129,10 +143,19 @@ class JournalEntryFormMixin:
         instance = form.save(commit=False)
         debit_formset = context.get("debit_formset")
         credit_formset = context.get("credit_formset")
+        fixed_asset_form = context.get("fixed_asset_form")
 
         # フォームセットのバリデーション
-        if not (debit_formset.is_valid() and credit_formset.is_valid()):
+        if not debit_formset.is_valid():
             return self.form_invalid(form)
+        if not credit_formset.is_valid():
+            return self.form_invalid(form)
+        
+        is_register_checked = self.request.POST.get('register_as_fixed_asset') in ['on', 'True', 'true', '1']
+        
+        if is_register_checked:
+            if not fixed_asset_form.is_valid():
+                return self.form_invalid(form)
 
         # 借方・貸方合計チェック（フォームセット内で合計を保持している前提）
         total_debit = getattr(debit_formset, "total_amount", Decimal("0.00"))
@@ -149,6 +172,31 @@ class JournalEntryFormMixin:
             credit_formset.instance = self.object
             debit_formset.save()
             credit_formset.save()
+
+            if not is_register_checked:
+                return super().form_valid(form)
+
+            # 固定資産登録処理
+            fixed_asset = fixed_asset_form.save(commit=False)
+            fixed_asset.acquisition_journal_entry = self.object
+            fixed_asset.acquisition_date = self.object.date
+
+            # 取得価額は借方明細の該当勘定科目の金額から取得
+            target_account = fixed_asset.account
+            debit_amount = Decimal("0")
+            for debit in self.object.debits.filter(account=target_account):
+                debit_amount += debit.amount
+
+            if debit_amount <= 0:
+                # 借方に該当勘定科目の金額がない場合はエラー
+                form.add_error(
+                    None,
+                    f"固定資産登録エラー: 仕訳の借方に勘定科目「{target_account.name}」の金額が存在しません。",
+                )
+                return self.form_invalid(form)
+
+            fixed_asset.acquisition_cost = debit_amount
+            fixed_asset.save()
 
         return super().form_valid(form)
 
@@ -247,7 +295,7 @@ class GeneralLedgerView(TemplateView):
         context = super().get_context_data(**kwargs)
 
         # URLから勘定科目名を取得
-        account_name: str =self.request.GET.get("account_name","")
+        account_name: str = self.request.GET.get("account_name", "")
         # account_name: str = self.kwargs["account_name"]
 
         # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
@@ -264,12 +312,8 @@ class GeneralLedgerView(TemplateView):
 
         for je in journal_entries:
             # # 取引に含まれるすべての勘定科目（Accountオブジェクト）を収集
-            all_debits: set[Account] = collect_account_set_from_je(
-                je, is_debit=True
-            )
-            all_credits: set[Account] = collect_account_set_from_je(
-                je, is_debit=False
-            )
+            all_debits: set[Account] = collect_account_set_from_je(je, is_debit=True)
+            all_credits: set[Account] = collect_account_set_from_je(je, is_debit=False)
 
             # 当該勘定科目に関連する明細行を特定
             is_debit_entry = target_account_id in {acc.id for acc in all_debits}

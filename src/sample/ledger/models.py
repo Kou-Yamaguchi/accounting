@@ -479,7 +479,9 @@ class FixedAsset(models.Model):
     )
 
     # メタ情報
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name="会社")
+    # Companyは取引先を想定している．
+    # 会社ログイン機能実装時に有効化することを想定
+    # company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name="会社")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
     created_by = models.ForeignKey(

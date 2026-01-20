@@ -58,8 +58,57 @@
     </div>
   </div>
 
+  <!-- 固定資産登録フォーム -->
+  <div class="fixed-asset-section mt-4">
+    <h3>固定資産登録（オプション）</h3>
+    <div class="card">
+      <div class="card-body">
+        <!-- チェックボックスのみ常に表示 -->
+        <div class="form-check mb-3">
+          {{ fixed_asset_form.register_as_fixed_asset }}
+          <label class="form-check-label" for="{{ fixed_asset_form.register_as_fixed_asset.id_for_label }}">
+            {{ fixed_asset_form.register_as_fixed_asset.label }}
+          </label>
+        </div>
+        
+        <!-- 固定資産詳細フォーム（初期は非表示） -->
+        <div id="fixed-asset-details" style="display: none;">
+          {% for field in fixed_asset_form %}
+            {% if field.name != 'register_as_fixed_asset' %}
+              {% bootstrap_field field %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
   {% bootstrap_button button_type="submit" content="保存" %}
 </form>
+
+<script>
+  // 固定資産登録チェックボックスの表示/非表示制御
+  document.addEventListener('DOMContentLoaded', function() {
+    const registerCheckbox = document.getElementById('{{ fixed_asset_form.register_as_fixed_asset.id_for_label }}');
+    const detailsDiv = document.getElementById('fixed-asset-details');
+    
+    if (registerCheckbox && detailsDiv) {
+      // チェックボックスの変更イベント
+      registerCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+          detailsDiv.style.display = 'block';
+        } else {
+          detailsDiv.style.display = 'none';
+        }
+      });
+      
+      // 初期状態の設定（ページロード時にチェックされている場合）
+      if (registerCheckbox.checked) {
+        detailsDiv.style.display = 'block';
+      }
+    }
+  });
+</script>
 
 {% endblock %}
 

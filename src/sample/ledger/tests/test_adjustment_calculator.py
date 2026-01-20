@@ -73,7 +73,6 @@ class AdjustmentCalculatorTest(TestCase):
             depreciation_method="straight_line",
             useful_life=20,
             residual_value=Decimal("0"),
-            company=self.company,
         )
 
         # 減価償却費を計算
@@ -124,7 +123,6 @@ class AdjustmentCalculatorTest(TestCase):
             depreciation_method="straight_line",
             useful_life=4,
             residual_value=Decimal("0"),
-            company=self.company,
         )
 
         # 減価償却費を計算
@@ -161,7 +159,6 @@ class AdjustmentCalculatorTest(TestCase):
             acquisition_cost=Decimal("10000000"),
             depreciation_method="straight_line",
             useful_life=20,
-            company=self.company,
         )
 
         # 既に減価償却履歴を登録
@@ -269,7 +266,6 @@ class AdjustmentCalculatorTest(TestCase):
             acquisition_cost=Decimal("10000000"),
             depreciation_method="straight_line",
             useful_life=20,
-            company=self.company,
         )
 
         # 売掛金
