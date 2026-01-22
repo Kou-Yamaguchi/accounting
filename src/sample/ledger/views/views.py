@@ -204,14 +204,14 @@ class JournalEntryFormMixin:
 class JournalEntryCreateView(JournalEntryFormMixin, CreateView):
     model = JournalEntry
     form_class = JournalEntryForm
-    template_name = "ledger/journal_entry/alter_form.html"
+    template_name = "ledger/journal_entry/form.html"
     success_url = reverse_lazy("journal_entry_list")
 
 
 class JournalEntryUpdateView(JournalEntryFormMixin, UpdateView):
     model = JournalEntry
     form_class = JournalEntryForm
-    template_name = "ledger/journal_entry/alter_form.html"
+    template_name = "ledger/journal_entry/form.html"
     success_url = reverse_lazy("journal_entry_list")
 
 

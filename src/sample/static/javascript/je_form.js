@@ -141,32 +141,109 @@ document.addEventListener('DOMContentLoaded', function() {
       tbody.appendChild(newRow);
     }
   }
-  
+
+  // 既存の借方フィールドを取得（Djangoが既にレンダリング済み）
+  function getExistingDebitCells(index) {
+    const accountCell = document.createElement('td');
+    const amountCell = document.createElement('td');
+    const deleteCell = document.createElement('td');
+    deleteCell.className = 'text-center';
+    console.log(`Getting existing debit cells for index ${index}`);
+    // Djangoが生成した既存のフィールドを取得
+    const accountField = document.querySelector(`[name="debits-${index}-account"]`);
+    const amountField = document.querySelector(`[name="debits-${index}-amount"]`);
+    const idField = document.querySelector(`[name="debits-${index}-id"]`);
+    const jeField = document.querySelector(`[name="debits-${index}-journal_entry"]`);
+    const deleteField = document.querySelector(`[name="debits-${index}-DELETE"]`);
+    
+    // 既存フィールドをセルに追加（値は既に入っている）
+    console.log(`Getting existing debit cells for index ${accountField}`);
+    if (idField) accountCell.appendChild(idField);
+    if (jeField) accountCell.appendChild(jeField);
+    if (accountField) accountCell.appendChild(accountField);
+    if (amountField) amountCell.appendChild(amountField);
+    
+    if (deleteField) {
+      deleteField.style.display = 'none';
+      deleteCell.appendChild(deleteField);
+    }
+    
+    // 削除ボタン
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'btn btn-sm btn-danger remove-debit-button';
+    deleteBtn.textContent = '削除';
+    deleteCell.appendChild(deleteBtn);
+    
+    return { accountCell, amountCell, deleteCell };
+  }
+
+  // 既存の貸方フィールドを取得
+  function getExistingCreditCells(index) {
+    const accountCell = document.createElement('td');
+    const amountCell = document.createElement('td');
+    const deleteCell = document.createElement('td');
+    deleteCell.className = 'text-center';
+    
+    const accountField = document.querySelector(`[name="credits-${index}-account"]`);
+    const amountField = document.querySelector(`[name="credits-${index}-amount"]`);
+    const idField = document.querySelector(`[name="credits-${index}-id"]`);
+    const jeField = document.querySelector(`[name="credits-${index}-journal_entry"]`);
+    const deleteField = document.querySelector(`[name="credits-${index}-DELETE"]`);
+    
+    if (idField) accountCell.appendChild(idField);
+    if (jeField) accountCell.appendChild(jeField);
+    if (accountField) accountCell.appendChild(accountField);
+    if (amountField) amountCell.appendChild(amountField);
+    
+    if (deleteField) {
+      deleteField.style.display = 'none';
+      deleteCell.appendChild(deleteField);
+    }
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'btn btn-sm btn-danger remove-credit-button';
+    deleteBtn.textContent = '削除';
+    deleteCell.appendChild(deleteBtn);
+    
+    return { accountCell, amountCell, deleteCell };
+  }
+
   // 初期データをテーブルに表示
   function initializeTable(debitCount = debitFormCount, creditCount = creditFormCount) {
     const maxRows = Math.max(debitCount, creditCount, 1); // 最低1行
     for (let i = 0; i < maxRows; i++) {
       const row = createRow();
+
+      if (i < debitCount) {
+        const debitCells = getExistingDebitCells(i);
+        row.children[0].appendChild(debitCells.accountCell);
+        row.children[1].appendChild(debitCells.amountCell);
+        row.children[2].appendChild(debitCells.deleteCell);
+      }
+
+      if (i < creditCount) {
+        const creditCells = getExistingCreditCells(i);
+        row.children[3].appendChild(creditCells.accountCell);
+        row.children[4].appendChild(creditCells.amountCell);
+        row.children[5].appendChild(creditCells.deleteCell);
+      }
+
       tbody.appendChild(row);
     }
     // 初期フォームカウントが0の場合、1に設定
     if (debitCount === 0) {
       debitCount = 1;
       document.querySelector('#id_debits-TOTAL_FORMS').value = debitCount;
-    }
-
-    for (let i = 0; i < debitCount; i++) {
-      const cells = createDebitCells(i);
+      const cells = createDebitCells(0);
       attatchDebitCells(cells.debitAccountCell, cells.debitAmountCell, cells.debitDeleteCell);
     }
 
     if (creditCount === 0) {
       creditCount = 1;
       document.querySelector('#id_credits-TOTAL_FORMS').value = creditCount;
-    }
-
-    for (let i = 0; i < creditCount; i++) {
-      const cells = createCreditCells(i);
+      const cells = createCreditCells(0);
       attatchCreditCells(cells.creditAccountCell, cells.creditAmountCell, cells.creditDeleteCell);
     }
 
@@ -319,9 +396,8 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeTable();
   
   // 固定資産登録チェックボックスの表示/非表示制御
-  const registerCheckbox = document.getElementById('{{ fixed_asset_form.register_as_fixed_asset.id_for_label }}');
+  const registerCheckbox = document.getElementById('id_register_as_fixed_asset');
   const detailsDiv = document.getElementById('fixed-asset-details');
-  
   if (registerCheckbox && detailsDiv) {
     registerCheckbox.addEventListener('change', function() {
       detailsDiv.style.display = this.checked ? 'block' : 'none';

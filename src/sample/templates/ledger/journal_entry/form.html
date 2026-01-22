@@ -5,7 +5,7 @@
 {% block main %}
 
 <head>
-  <script src="{% static 'javascript/journal_entry_form.js' %}"></script>
+  <script src="{% static 'javascript/je_form.js' %}"></script>
 </head>
 
 <h2>仕訳登録・編集</h2>
@@ -14,48 +14,49 @@
 
   <h2>ヘッダー情報</h2>
   {% bootstrap_form form %}
-  {{ form.errors }}
+  <!-- {{ form.errors }} -->
 
-  <div class="journal-lines">
-    <div id="debit-lines-container">
-      <h3>借方行</h3>
-      {{ debit_formset.management_form }}
-      {% for debit_form in debit_formset %}
-      <div class="journal-line">
-        <!-- {{ debit_form.as_p }} -->
-        {% bootstrap_form debit_form %}
-        <!-- {{ debit_form.errors }} -->
-        <button type="button" class="remove-line-button">行を削除</button>
-      </div>
-      {% endfor %}
+  <h3>仕訳明細</h3>
+  <div class="table-responsive">
+    <table class="table table-bordered" id="journal-entry-table">
+      <thead>
+        <tr>
+          <th>勘定科目(借方)</th>
+          <th>金額(借方)</th>
+          <th style="width: 80px;"></th>
+          <th>勘定科目(貸方)</th>
+          <th>金額(貸方)</th>
+          <th style="width: 80px;"></th>
+        </tr>
+      </thead>
+      <tbody id="journal-entry-tbody">
+        {{ debit_formset.management_form }}
+        {{ credit_formset.management_form }}
+      </tbody>
+    </table>
+  </div>
 
-      <!-- empty_form テンプレート（Django の __prefix__ が入っている） -->
-      <div class="empty-form-template" style="display:none;">
-        {% bootstrap_form debit_formset.empty_form %}
-      </div>
-
-      {% bootstrap_button button_type="button" content="借方を追加" id="add-debit-button" %}
+  <!-- 非表示のテンプレート -->
+  <div style="display:none;" id="formset-templates">
+    <div id="debit-template">
+      {{ debit_formset.empty_form.as_p }}
     </div>
-
-    <div id="credit-lines-container">
-      <h3>貸方行</h3>
-      {{ credit_formset.management_form }}
-      {% for credit_form in credit_formset %}
-      <div class="journal-line">
-        {% bootstrap_form credit_form %}
-        <!-- {{ credit_form.errors }} -->
-        <button type="button" class="remove-line-button">行を削除</button>
-        <!-- {% bootstrap_button button_type="button" content="行を削除" class="remove-line-button" %} -->
-      </div>
-      {% endfor %}
-
-      <!-- empty_form テンプレート -->
-      <div class="empty-form-template" style="display:none;">
-        {% bootstrap_form credit_formset.empty_form %}
-      </div>
-
-      {% bootstrap_button button_type="button" content="貸方を追加" id="add-credit-button" %}
+    <div id="credit-template">
+      {{ credit_formset.empty_form.as_p }}
     </div>
+  </div>
+
+  <div id="existing-forms" style="display: none;">
+    {% for form in debit_formset %}
+      {{ form.as_p }}
+    {% endfor %}
+    {% for form in credit_formset %}
+      {{ form.as_p }}
+    {% endfor %}
+  </div>
+  <div class="mb-3">
+    <button type="button" class="btn btn-primary me-2" id="add-debit-button">借方行を追加</button>
+    <button type="button" class="btn btn-primary" id="add-credit-button">貸方行を追加</button>
   </div>
 
   <!-- 固定資産登録フォーム -->
@@ -63,20 +64,18 @@
     <h3>固定資産登録（オプション）</h3>
     <div class="card">
       <div class="card-body">
-        <!-- チェックボックスのみ常に表示 -->
         <div class="form-check mb-3">
           {{ fixed_asset_form.register_as_fixed_asset }}
           <label class="form-check-label" for="{{ fixed_asset_form.register_as_fixed_asset.id_for_label }}">
             {{ fixed_asset_form.register_as_fixed_asset.label }}
           </label>
         </div>
-        
-        <!-- 固定資産詳細フォーム（初期は非表示） -->
+
         <div id="fixed-asset-details" style="display: none;">
           {% for field in fixed_asset_form %}
-            {% if field.name != 'register_as_fixed_asset' %}
-              {% bootstrap_field field %}
-            {% endif %}
+          {% if field.name != 'register_as_fixed_asset' %}
+          {% bootstrap_field field %}
+          {% endif %}
           {% endfor %}
         </div>
       </div>
@@ -86,32 +85,4 @@
   {% bootstrap_button button_type="submit" content="保存" %}
 </form>
 
-<script>
-  // 固定資産登録チェックボックスの表示/非表示制御
-  document.addEventListener('DOMContentLoaded', function() {
-    const registerCheckbox = document.getElementById('{{ fixed_asset_form.register_as_fixed_asset.id_for_label }}');
-    const detailsDiv = document.getElementById('fixed-asset-details');
-    
-    if (registerCheckbox && detailsDiv) {
-      // チェックボックスの変更イベント
-      registerCheckbox.addEventListener('change', function() {
-        if (this.checked) {
-          detailsDiv.style.display = 'block';
-        } else {
-          detailsDiv.style.display = 'none';
-        }
-      });
-      
-      // 初期状態の設定（ページロード時にチェックされている場合）
-      if (registerCheckbox.checked) {
-        detailsDiv.style.display = 'block';
-      }
-    }
-  });
-</script>
-
 {% endblock %}
-
-<!-- {% block script %}
-<script src="{% static 'javascript/journal_entry_form.js' %}"></script>
-{% endblock %} -->

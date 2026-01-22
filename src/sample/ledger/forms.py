@@ -26,6 +26,9 @@ class JournalEntryForm(forms.ModelForm):
     class Meta:
         model = JournalEntry
         fields = ["date", "summary", "company"]
+        widgets = {
+            "summary": forms.TextInput(attrs={"class": "form-control"}),
+        }
 
 
 class DebitForm(forms.ModelForm):
@@ -35,7 +38,14 @@ class DebitForm(forms.ModelForm):
 
     def clean_amount(self):
         amount = self.cleaned_data.get(AMOUNT)
-        if amount is not None and amount <= Decimal("0"):
+        if amount is None:
+            raise forms.ValidationError(
+                _(ErrorMessages.MESSAGE_0004.value),
+                code="invalid",
+                params={f"{AMOUNT}": amount},
+            )
+
+        if amount <= Decimal("0"):
             raise forms.ValidationError(
                 _(ErrorMessages.MESSAGE_0003.value),
                 code="invalid",
@@ -62,7 +72,14 @@ class CreditForm(forms.ModelForm):
 
     def clean_amount(self):
         amount = self.cleaned_data.get(AMOUNT)
-        if amount is not None and amount <= Decimal("0"):
+        if amount is None:
+            raise forms.ValidationError(
+                _(ErrorMessages.MESSAGE_0004.value),
+                code="invalid",
+                params={f"{AMOUNT}": amount},
+            )
+
+        if amount <= Decimal("0"):
             raise forms.ValidationError(
                 _(ErrorMessages.MESSAGE_0003.value),
                 code="invalid",
@@ -102,7 +119,10 @@ class BaseTotalFormSet(forms.BaseInlineFormSet):
                 continue
 
             amount = form.cleaned_data.get(AMOUNT)
-            if amount is None or amount <= 0:
+            if amount is None:
+                raise forms.ValidationError(ErrorMessages.MESSAGE_0004.value)
+
+            if amount <= 0:
                 raise forms.ValidationError(ErrorMessages.MESSAGE_0003.value)
 
             total_amount += amount
