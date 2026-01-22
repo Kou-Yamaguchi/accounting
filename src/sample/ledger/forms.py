@@ -3,7 +3,15 @@ from decimal import Decimal
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from ledger.models import Account, Company, JournalEntry, Debit, Credit, FixedAsset
+from ledger.models import (
+    Account,
+    Company,
+    JournalEntry,
+    Debit,
+    Credit,
+    FixedAsset,
+    FiscalPeriod,
+)
 from enums.error_messages import ErrorMessages
 
 ACCOUNT = "account"
@@ -196,3 +204,32 @@ class FixedAssetInlineForm(forms.ModelForm):
                     )
 
         return cleaned_data
+
+
+class AdjustmentJournalEntryForm(forms.ModelForm):
+    """決算整理仕訳用フォーム"""
+
+    fiscal_period = forms.ModelChoiceField(
+        queryset=FiscalPeriod.objects.filter(is_closed=False),
+        label="会計期間",
+        required=True,
+    )
+
+    class Meta:
+        model = JournalEntry
+        fields = ["fiscal_period", "summary", "company"]
+        widgets = {
+            "summary": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 日付フィールドは表示しない（期末日で自動設定）
+        # entry_typeも自動設定するため除外
+
+
+class FiscalPeriodForm(forms.ModelForm):
+    class Meta:
+        model = FiscalPeriod
+        fields = ["name", "start_date", "end_date", "is_closed"]

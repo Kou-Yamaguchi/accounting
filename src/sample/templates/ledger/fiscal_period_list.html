@@ -1,0 +1,29 @@
+<!-- 会計期間管理 -->
+{% extends "base.html" %}
+
+{% block main %}
+<h1>登録済み会計期間</h1>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>名称</th>
+      <th>開始日</th>
+      <th>終了日</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for fiscal_period in fiscal_periods %}
+    <tr>
+      <td>{{ fiscal_period.name }}</td>
+      <td>{{ fiscal_period.start_date }}</td>
+      <td>{{ fiscal_period.end_date }}</td>
+      <td>
+        <a href="{% url 'fiscal_period_edit' fiscal_period.pk %}">編集</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{% url 'fiscal_period_create' %}">新しい会計期間を作成</a>
+{% endblock %}

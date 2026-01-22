@@ -15,7 +15,7 @@ from django.views.generic import (
 from django.urls import reverse_lazy
 from django.db import transaction
 
-from ledger.models import JournalEntry, Account, Company, FixedAsset
+from ledger.models import JournalEntry, Account, Company, FixedAsset, FiscalPeriod
 from ledger.forms import (
     JournalEntryForm,
     DebitFormSet,
@@ -79,6 +79,33 @@ class CompanyDeleteView(DeleteView):
     model = Company
     template_name = "ledger/company/confirm_delete.html"
     success_url = reverse_lazy("company_list")
+
+
+class FiscalPeriodListView(ListView):
+    model = FiscalPeriod
+    template_name = "ledger/fiscal_period_list.html"
+    context_object_name = "fiscal_periods"
+
+
+class FiscalPeriodCreateView(CreateView):
+    model = FiscalPeriod
+    fields = ["name", "start_date", "end_date", "is_closed"]
+    template_name = "ledger/fiscal_period_form.html"
+    success_url = reverse_lazy("fiscal_period_list")
+
+
+class FiscalPeriodUpdateView(UpdateView):
+    model = FiscalPeriod
+    fields = ["name", "start_date", "end_date", "is_closed"]
+    template_name = "ledger/fiscal_period_form.html"
+    success_url = reverse_lazy("fiscal_period_list")
+
+
+# class FiscalPeriodDeleteView(DeleteView):
+#     model = FiscalPeriod
+#     template_name = "ledger/fiscal_period_confirm_delete.html"
+#     success_url = reverse_lazy("fiscal_period_list")
+
 
 
 class JournalEntryListView(ListView):
