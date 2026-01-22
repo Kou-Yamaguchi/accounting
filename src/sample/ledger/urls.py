@@ -33,9 +33,15 @@ from ledger.views.views import (
     LedgerSelectView,
     GeneralLedgerView,
 )
+from ledger.views.adjustment_entry import AdjustmentEntryCreateView
 
 urlpatterns = [
     path("new/", JournalEntryCreateView.as_view(), name="journal_entry_new"),
+    path(
+        "adjustment/new/",
+        AdjustmentEntryCreateView.as_view(),
+        name="adjustment_entry_new",
+    ),
     path("", JournalEntryListView.as_view(), name="journal_entry_list"),
     path("<int:pk>/edit/", JournalEntryUpdateView.as_view(), name="journal_entry_edit"),
     path(

@@ -122,6 +122,9 @@ class BaseTotalFormSet(forms.BaseInlineFormSet):
         super().clean()
         total_amount = Decimal("0.00")
 
+        print(f"BaseTotalFormSet.clean called with {len(self.forms)} forms.")
+        print(f"Forms data: {[form.cleaned_data for form in self.forms]}")
+
         for form in self.forms:
             if form.cleaned_data.get("DELETE", False):
                 continue

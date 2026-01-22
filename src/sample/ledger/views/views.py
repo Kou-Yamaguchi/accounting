@@ -174,8 +174,10 @@ class JournalEntryFormMixin:
 
         # フォームセットのバリデーション
         if not debit_formset.is_valid():
+            print(debit_formset.non_form_errors())
             return self.form_invalid(form)
         if not credit_formset.is_valid():
+            print(credit_formset.non_form_errors())
             return self.form_invalid(form)
         
         is_register_checked = self.request.POST.get('register_as_fixed_asset') in ['on', 'True', 'true', '1']
