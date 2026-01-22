@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+<h1>会計期間の追加・編集</h1>
+<form method="post">
+  {% csrf_token %}
+  {% bootstrap_form form %}
+  {% bootstrap_button button_type="submit" content="保存" %}
+</form>
+{% endblock %}
