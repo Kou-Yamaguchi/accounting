@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const deleteCheckbox = document.createElement('input');
     deleteCheckbox.type = 'checkbox';
-    deleteCheckbox.name = `debits-${debitFormCount}-DELETE`;
+    deleteCheckbox.name = `debits-${index}-DELETE`;
     deleteCheckbox.style.display = 'none';
     debitDeleteCell.appendChild(deleteCheckbox);
     
@@ -185,57 +185,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const debitDeleteCell = document.createElement('td');
     debitDeleteCell.className = 'text-center';
     
-    // if (index < debitCount) {
-    //   const accountField = document.querySelector(`[name="debits-${index}-account"]`);
-    //   const amountField = document.querySelector(`[name="debits-${index}-amount"]`);
-    //   const idField = document.querySelector(`[name="debits-${index}-id"]`);
-    //   const jeField = document.querySelector(`[name="debits-${index}-journal_entry"]`);
-    //   const deleteField = document.querySelector(`[name="debits-${index}-DELETE"]`);
-      
-    //   if (idField) debitAccountCell.appendChild(idField);
-    //   if (jeField) debitAccountCell.appendChild(jeField);
-    //   if (accountField) debitAccountCell.appendChild(accountField);
-    //   if (amountField) debitAmountCell.appendChild(amountField);
-    //   if (deleteField) {
-    //     deleteField.style.display = 'none';
-    //     debitDeleteCell.appendChild(deleteField);
-    //   }
-      
-    //   const deleteBtn = document.createElement('button');
-    //   deleteBtn.type = 'button';
-    //   deleteBtn.className = 'btn btn-sm btn-danger remove-debit-button';
-    //   deleteBtn.textContent = '削除';
-    //   debitDeleteCell.appendChild(deleteBtn);
-    // }
-    
     // 貸方セル
     const creditAccountCell = document.createElement('td');
     const creditAmountCell = document.createElement('td');
     const creditDeleteCell = document.createElement('td');
     creditDeleteCell.className = 'text-center';
-    
-    // if (index < creditCount) {
-    //   const accountField = document.querySelector(`[name="credits-${index}-account"]`);
-    //   const amountField = document.querySelector(`[name="credits-${index}-amount"]`);
-    //   const idField = document.querySelector(`[name="credits-${index}-id"]`);
-    //   const jeField = document.querySelector(`[name="credits-${index}-journal_entry"]`);
-    //   const deleteField = document.querySelector(`[name="credits-${index}-DELETE"]`);
-      
-    //   if (idField) creditAccountCell.appendChild(idField);
-    //   if (jeField) creditAccountCell.appendChild(jeField);
-    //   if (accountField) creditAccountCell.appendChild(accountField);
-    //   if (amountField) creditAmountCell.appendChild(amountField);
-    //   if (deleteField) {
-    //     deleteField.style.display = 'none';
-    //     creditDeleteCell.appendChild(deleteField);
-    //   }
-      
-    //   const deleteBtn = document.createElement('button');
-    //   deleteBtn.type = 'button';
-    //   deleteBtn.className = 'btn btn-sm btn-danger remove-credit-button';
-    //   deleteBtn.textContent = '削除';
-    //   creditDeleteCell.appendChild(deleteBtn);
-    // }
     
     row.appendChild(debitAccountCell);
     row.appendChild(debitAmountCell);
@@ -249,75 +203,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 借方行を追加
   document.getElementById('add-debit-button').addEventListener('click', function () {
-    const { debitAccountCell, debitAmountCell, debitDeleteCell } = createDebitCells(debitFormCount);
+    const formCount = parseInt(document.querySelector('#id_debits-TOTAL_FORMS').value);
+    const { debitAccountCell, debitAmountCell, debitDeleteCell } = createDebitCells(formCount);
     attatchDebitCells(debitAccountCell, debitAmountCell, debitDeleteCell);
-    // const newFormHtml = debitTemplate.replace(/__prefix__/g, debitFormCount);
-    // const tempDiv = document.createElement('div');
-    // tempDiv.innerHTML = newFormHtml;
     
-    // const accountField = tempDiv.querySelector('[name*="-account"]');
-    // const amountField = tempDiv.querySelector('[name*="-amount"]');
-    // const idField = tempDiv.querySelector('[name*="-id"]');
-    // const jeField = tempDiv.querySelector('[name*="-journal_entry"]');
-    
-    // const debitAccountCell = document.createElement('td');
-    // const debitAmountCell = document.createElement('td');
-    // const debitDeleteCell = document.createElement('td');
-    // debitDeleteCell.className = 'text-center';
-    
-    // if (idField) debitAccountCell.appendChild(idField);
-    // if (jeField) debitAccountCell.appendChild(jeField);
-    // if (accountField) debitAccountCell.appendChild(accountField);
-    // if (amountField) debitAmountCell.appendChild(amountField);
-    
-    // const deleteCheckbox = document.createElement('input');
-    // deleteCheckbox.type = 'checkbox';
-    // deleteCheckbox.name = `debits-${debitFormCount}-DELETE`;
-    // deleteCheckbox.style.display = 'none';
-    // debitDeleteCell.appendChild(deleteCheckbox);
-    
-    // const deleteBtn = document.createElement('button');
-    // deleteBtn.type = 'button';
-    // deleteBtn.className = 'btn btn-sm btn-danger remove-debit-button';
-    // deleteBtn.textContent = '削除';
-    // debitDeleteCell.appendChild(deleteBtn);
-    
-    // 既存の行を探して借方セルを追加、または新しい行を作成
-    // const rows = tbody.querySelectorAll('tr');
-    // let inserted = false;
-    
-    // for (let i = 0; i < rows.length; i++) {
-    //   const row = rows[i];
-    //   const debitAccount = row.querySelector('td:first-child [name*="debits"][name*="-account"]');
-      
-    //   if (!debitAccount) {
-    //     // この行には借方がないので、借方セルを追加
-    //     row.children[0].appendChild(idField || document.createTextNode(''));
-    //     if (jeField) row.children[0].appendChild(jeField);
-    //     if (accountField) row.children[0].appendChild(accountField);
-    //     if (amountField) row.children[1].appendChild(amountField);
-    //     row.children[2].appendChild(deleteCheckbox);
-    //     row.children[2].appendChild(deleteBtn);
-    //     inserted = true;
-    //     break;
-    //   }
-    // }
-    
-    // // 空きがなければ新しい行を追加
-    // if (!inserted) {
-    //   const newRow = document.createElement('tr');
-    //   newRow.className = 'journal-entry-row';
-    //   newRow.appendChild(debitAccountCell);
-    //   newRow.appendChild(debitAmountCell);
-    //   newRow.appendChild(debitDeleteCell);
-    //   newRow.appendChild(document.createElement('td'));
-    //   newRow.appendChild(document.createElement('td'));
-    //   newRow.appendChild(document.createElement('td'));
-    //   tbody.appendChild(newRow);
-    // }
-    
-    debitFormCount++;
-    document.querySelector('#id_debits-TOTAL_FORMS').value = debitFormCount;
+    document.querySelector('#id_debits-TOTAL_FORMS').value = formCount + 1;
     
     attachRemoveHandlers();
     updateDeleteButtons();
@@ -325,43 +215,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 貸方行を追加
   document.getElementById('add-credit-button').addEventListener('click', function () {
-    const { creditAccountCell, creditAmountCell, creditDeleteCell } = createCreditCells(creditFormCount);
+    const formCount = parseInt(document.querySelector('#id_credits-TOTAL_FORMS').value);
+    const { creditAccountCell, creditAmountCell, creditDeleteCell } = createCreditCells(formCount);
     attatchCreditCells(creditAccountCell, creditAmountCell, creditDeleteCell);
     
-    // 既存の行を探して貸方セルを追加、または新しい行を作成
-    // const rows = tbody.querySelectorAll('tr');
-    // let inserted = false;
-    
-    // for (let i = 0; i < rows.length; i++) {
-    //   // 行の取得とコンテンツの有無の確認
-    //   const row = rows[i];
-    //   const creditAccount = row.querySelector('td:nth-child(4) [name*="credits"][name*="-account"]');
-      
-    //   if (!creditAccount) {
-    //     // この行には貸方がないので、貸方セルを追加
-    //     row.children[3].appendChild(creditAccountCell);
-    //     row.children[4].appendChild(creditAmountCell);
-    //     row.children[5].appendChild(creditDeleteCell);
-    //     inserted = true;
-    //     break;
-    //   }
-    // }
-    
-    // // 空きがなければ新しい行を追加
-    // if (!inserted) {
-    //   const newRow = document.createElement('tr');
-    //   newRow.className = 'journal-entry-row';
-    //   newRow.appendChild(document.createElement('td'));
-    //   newRow.appendChild(document.createElement('td'));
-    //   newRow.appendChild(document.createElement('td'));
-    //   newRow.appendChild(creditAccountCell);
-    //   newRow.appendChild(creditAmountCell);
-    //   newRow.appendChild(creditDeleteCell);
-    //   tbody.appendChild(newRow);
-    // }
-    
-    creditFormCount++;
-    document.querySelector('#id_credits-TOTAL_FORMS').value = creditFormCount;
+    document.querySelector('#id_credits-TOTAL_FORMS').value = formCount + 1;
     
     attachRemoveHandlers();
     updateDeleteButtons();
