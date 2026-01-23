@@ -150,34 +150,34 @@ class AdjustmentEntryCreateViewTest(TestCase):
 
     def test_get_context_includes_reference_info(self):
         """コンテキストに参考情報が含まれることを確認"""
-        view = AdjustmentEntryCreateView()
-        view.request = self.factory.get(
+        response = self.client.get(
             reverse("adjustment_entry_new"),
-            {"fiscal_period_id": self.fiscal_period.id},
+            {"fiscal_period": self.fiscal_period.id},
         )
 
-        context = view.get_context_data()
+        context = response.context
+        self.assertEqual(response.status_code, 200)
 
         # 参考情報が含まれていることを確認
-        self.assertIn("reference_info", context)
-        reference_info = context["reference_info"]
+        # NOTE: 参考情報はreference_infoキーを経由せずに直接コンテキストに展開されるようになったため、以下のコメントアウト部分は参考用に残しています
+        # self.assertIn("reference_info", context)
+        # reference_info = context["reference_info"]
 
         # 減価償却と貸倒引当金の情報が含まれることを確認
-        self.assertIn("depreciation", reference_info)
-        self.assertIn("allowance", reference_info)
+        self.assertIn("depreciation", context)
+        self.assertIn("allowance", context)
 
     def test_get_context_with_fiscal_period(self):
         """会計期間が選択されている場合のコンテキストを確認"""
-        view = AdjustmentEntryCreateView()
-        view.request = self.factory.get(
+        response = self.client.get(
             reverse("adjustment_entry_new"),
-            {"fiscal_period_id": self.fiscal_period.id},
+            {"fiscal_period": self.fiscal_period.id},
         )
 
-        context = view.get_context_data()
+        context = response.context
 
-        self.assertIn("selected_fiscal_period", context)
-        self.assertEqual(context["selected_fiscal_period"], self.fiscal_period)
+        self.assertIn("fiscal_period", context)
+        self.assertEqual(context["fiscal_period"], self.fiscal_period)
 
     def test_form_valid_sets_date_to_period_end(self):
         """form_validで日付が期末日に設定されることを確認"""
@@ -395,19 +395,16 @@ class AdjustmentReferenceInfoTest(TestCase):
             acquisition_journal_entry=je,
         )
 
-        # ビューからコンテキストを取得
-        view = AdjustmentEntryCreateView()
-        view.request = self.factory.get(
+        response = self.client.get(
             reverse("adjustment_entry_new"),
-            {"fiscal_period_id": self.fiscal_period.id},
+            {"fiscal_period": self.fiscal_period.id},
         )
 
-        context = view.get_context_data()
-        reference_info = context["reference_info"]
+        context = response.context
 
         # 減価償却情報が含まれることを確認
-        self.assertIn("depreciation", reference_info)
-        depreciation = reference_info["depreciation"]
+        self.assertIn("depreciation", context)
+        depreciation = context["depreciation"]["assets"]
 
         # 固定資産情報が含まれることを確認
         self.assertTrue(len(depreciation) > 0)
@@ -432,23 +429,19 @@ class AdjustmentReferenceInfoTest(TestCase):
             amount=Decimal("1000000"),
         )
 
-        # ビューからコンテキストを取得
-        view = AdjustmentEntryCreateView()
-        view.request = self.factory.get(
+        response = self.client.get(
             reverse("adjustment_entry_new"),
-            {"fiscal_period_id": self.fiscal_period.id},
+            {"fiscal_period": self.fiscal_period.id},
         )
 
-        context = view.get_context_data()
-        reference_info = context["reference_info"]
+        context = response.context
 
         # 貸倒引当金情報が含まれることを確認
-        self.assertIn("allowance", reference_info)
-        allowance = reference_info["allowance"]
-
+        self.assertIn("allowance", context)
+        allowance = context["allowance"]
         # 売掛金残高が含まれることを確認
-        self.assertIn("receivables_balance", allowance)
-        self.assertEqual(allowance["receivables_balance"], Decimal("1000000"))
+        self.assertIn("receivables_accounts", allowance)
+        self.assertEqual(allowance["receivables_accounts"][0]["balance"], Decimal("1000000"))
 
     def test_depreciation_history_recording(self):
         """減価償却履歴が記録されることを確認"""
