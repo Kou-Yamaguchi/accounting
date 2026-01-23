@@ -499,8 +499,8 @@ class AdjustmentReferenceInfoTest(TestCase):
         depreciation_history = DepreciationHistory.objects.create(
             fixed_asset=fixed_asset,
             fiscal_period=self.fiscal_period,
-            depreciation_amount=Decimal("500000"),
-            journal_entry=adjustment_je,
+            amount=Decimal("500000"),
+            depreciation_journal_entry=adjustment_je,
         )
 
         # 減価償却履歴が記録されたことを確認
@@ -508,4 +508,4 @@ class AdjustmentReferenceInfoTest(TestCase):
             DepreciationHistory.objects.filter(fixed_asset=fixed_asset).count(),
             1,
         )
-        self.assertEqual(depreciation_history.depreciation_amount, Decimal("500000"))
+        self.assertEqual(depreciation_history.amount, Decimal("500000"))
