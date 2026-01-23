@@ -202,7 +202,7 @@ class AdjustmentEntryCreateViewTest(TestCase):
             acquisition_cost=Decimal("10000000"),
             useful_life=20,
             residual_value=Decimal("0"),
-            journal_entry=je,
+            acquisition_journal_entry=je,
         )
 
         # POSTデータを準備
@@ -249,30 +249,42 @@ class AdjustmentEntryCreateViewTest(TestCase):
     def test_form_valid_sets_entry_type_to_adjustment(self):
         """form_validでentry_typeがadjustmentに設定されることを確認"""
         # POSTデータを準備
-        post_data = {
-            "fiscal_period": self.fiscal_period.id,
-            "summary": "決算整理仕訳",
-            "company": self.company.id,
-            "debit-TOTAL_FORMS": "1",
-            "debit-INITIAL_FORMS": "1",
-            "debit-0-account": Account.objects.get(name="減価償却費").id,
-            "debit-0-amount": "500000",
-            "credit-TOTAL_FORMS": "1",
-            "credit-INITIAL_FORMS": "1",
-            "credit-0-account": Account.objects.get(name="減価償却累計額").id,
-            "credit-0-amount": "500000",
-        }
+        # NOTE: 以下のコメントアウト部分は参考用に残しています
+        # post_data = {
+        #     "fiscal_period": self.fiscal_period.id,
+        #     "summary": "決算整理仕訳",
+        #     "company": self.company.id,
+        #     "debit-TOTAL_FORMS": "1",
+        #     "debit-INITIAL_FORMS": "1",
+        #     "debit-0-account": Account.objects.get(name="減価償却費").id,
+        #     "debit-0-amount": "500000",
+        #     "credit-TOTAL_FORMS": "1",
+        #     "credit-INITIAL_FORMS": "1",
+        #     "credit-0-account": Account.objects.get(name="減価償却累計額").id,
+        #     "credit-0-amount": "500000",
+        # }
+
+        data = self.build_post(
+            debit_items=[
+                {
+                    "account": Account.objects.get(name="減価償却費").id,
+                    "amount": "500000",
+                }
+            ],
+            credit_items=[
+                {
+                    "account": Account.objects.get(name="減価償却累計額").id,
+                    "amount": "500000",
+                }
+            ],
+        )
 
         response = self.client.post(
             reverse("adjustment_entry_new"),
-            data=post_data,
+            data=data,
         )
-        print(response.content.decode())
-
+        
         self.assertEqual(response.status_code, 302)  # リダイレクトを確認
-
-        journal_entrys = JournalEntry.objects.all()
-        print(journal_entrys)
 
         # 仕訳が作成されたことを確認
         journal_entry: JournalEntry = JournalEntry.objects.filter(summary="決算整理仕訳").first()
@@ -284,23 +296,40 @@ class AdjustmentEntryCreateViewTest(TestCase):
     def test_form_valid_sets_fiscal_period(self):
         """form_validでfiscal_periodが設定されることを確認"""
         # POSTデータを準備
-        post_data = {
-            "fiscal_period": self.fiscal_period.id,
-            "summary": "決算整理仕訳",
-            "company": self.company.id,
-            "debit-TOTAL_FORMS": "1",
-            "debit-INITIAL_FORMS": "0",
-            "debit-0-account": Account.objects.get(name="減価償却費").id,
-            "debit-0-amount": "500000",
-            "credit-TOTAL_FORMS": "1",
-            "credit-INITIAL_FORMS": "0",
-            "credit-0-account": Account.objects.get(name="減価償却累計額").id,
-            "credit-0-amount": "500000",
-        }
+        # NOTE: 以下のコメントアウト部分は参考用に残しています
+        # このデータだと動作しないため、下の build_post を使っています
+        # post_data = {
+        #     "fiscal_period": self.fiscal_period.id,
+        #     "summary": "決算整理仕訳",
+        #     "company": self.company.id,
+        #     "debit-TOTAL_FORMS": "1",
+        #     "debit-INITIAL_FORMS": "0",
+        #     "debit-0-account": Account.objects.get(name="減価償却費").id,
+        #     "debit-0-amount": "500000",
+        #     "credit-TOTAL_FORMS": "1",
+        #     "credit-INITIAL_FORMS": "0",
+        #     "credit-0-account": Account.objects.get(name="減価償却累計額").id,
+        #     "credit-0-amount": "500000",
+        # }
+
+        data = self.build_post(
+            debit_items=[
+                {
+                    "account": Account.objects.get(name="減価償却費").id,
+                    "amount": "500000",
+                }
+            ],
+            credit_items=[
+                {
+                    "account": Account.objects.get(name="減価償却累計額").id,
+                    "amount": "500000",
+                }
+            ],
+        )
 
         response = self.client.post(
             reverse("adjustment_entry_new"),
-            data=post_data,
+            data=data,
         )
 
         # 仕訳が作成されたことを確認
@@ -363,7 +392,7 @@ class AdjustmentReferenceInfoTest(TestCase):
             acquisition_cost=Decimal("10000000"),
             useful_life=20,
             residual_value=Decimal("0"),
-            journal_entry=je,
+            acquisition_journal_entry=je,
         )
 
         # ビューからコンテキストを取得
@@ -444,7 +473,7 @@ class AdjustmentReferenceInfoTest(TestCase):
             acquisition_cost=Decimal("10000000"),
             useful_life=20,
             residual_value=Decimal("0"),
-            journal_entry=je,
+            acquisition_journal_entry=je,
         )
 
         # 減価償却の決算整理仕訳を作成
