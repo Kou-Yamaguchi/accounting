@@ -320,6 +320,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         // 削除ボタンも削除
         this.remove();
+        
+        // 借方を上に詰める
+        compactDebitRows();
         updateDeleteButtons();
       };
     });
@@ -340,8 +343,135 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         // 削除ボタンも削除
         this.remove();
+        
+        // 貸方を上に詰める
+        compactCreditRows();
         updateDeleteButtons();
       };
+    });
+  }
+  
+  // 借方行を上に詰める
+  function compactDebitRows() {
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const debits = [];
+    
+    // すべての借方フィールドを収集
+    rows.forEach(row => {
+      const accountField = row.querySelector('td:nth-child(1) [name*="debits"][name*="-account"]');
+      if (accountField) {
+        const amountField = row.querySelector('td:nth-child(2) [name*="debits"][name*="-amount"]');
+        const idField = row.querySelector('td:nth-child(1) [name*="debits"][name*="-id"]');
+        const jeField = row.querySelector('td:nth-child(1) [name*="debits"][name*="-journal_entry"]');
+        const deleteField = row.querySelector('input[name*="debits"][name*="DELETE"]');
+        const deleteButton = row.querySelector('.remove-debit-button');
+        
+        debits.push({
+          accountField,
+          amountField,
+          idField,
+          jeField,
+          deleteField,
+          deleteButton
+        });
+        
+        // 既存のフィールドを削除
+        if (idField) idField.remove();
+        if (jeField) jeField.remove();
+        if (accountField) accountField.remove();
+        if (amountField) amountField.remove();
+        if (deleteField) deleteField.remove();
+        if (deleteButton) deleteButton.remove();
+      }
+    });
+    
+    // 借方を詰めて再配置
+    debits.forEach((debit, index) => {
+      if (index < rows.length) {
+        const row = rows[index];
+        const accountCell = row.children[0];
+        const amountCell = row.children[1];
+        const deleteCell = row.children[2];
+        
+        if (debit.idField) accountCell.appendChild(debit.idField);
+        if (debit.jeField) accountCell.appendChild(debit.jeField);
+        if (debit.accountField) accountCell.appendChild(debit.accountField);
+        if (debit.amountField) amountCell.appendChild(debit.amountField);
+        if (debit.deleteField) deleteCell.appendChild(debit.deleteField);
+        if (debit.deleteButton) deleteCell.appendChild(debit.deleteButton);
+      }
+    });
+    
+    // 空行を削除または非表示
+    cleanupEmptyRows();
+  }
+  
+  // 貸方行を上に詰める
+  function compactCreditRows() {
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const credits = [];
+    
+    // すべての貸方フィールドを収集
+    rows.forEach(row => {
+      const accountField = row.querySelector('td:nth-child(4) [name*="credits"][name*="-account"]');
+      if (accountField) {
+        const amountField = row.querySelector('td:nth-child(5) [name*="credits"][name*="-amount"]');
+        const idField = row.querySelector('td:nth-child(4) [name*="credits"][name*="-id"]');
+        const jeField = row.querySelector('td:nth-child(4) [name*="credits"][name*="-journal_entry"]');
+        const deleteField = row.querySelector('input[name*="credits"][name*="DELETE"]');
+        const deleteButton = row.querySelector('.remove-credit-button');
+        
+        credits.push({
+          accountField,
+          amountField,
+          idField,
+          jeField,
+          deleteField,
+          deleteButton
+        });
+        
+        // 既存のフィールドを削除
+        if (idField) idField.remove();
+        if (jeField) jeField.remove();
+        if (accountField) accountField.remove();
+        if (amountField) amountField.remove();
+        if (deleteField) deleteField.remove();
+        if (deleteButton) deleteButton.remove();
+      }
+    });
+    
+    // 貸方を詰めて再配置
+    credits.forEach((credit, index) => {
+      if (index < rows.length) {
+        const row = rows[index];
+        const accountCell = row.children[3];
+        const amountCell = row.children[4];
+        const deleteCell = row.children[5];
+        
+        if (credit.idField) accountCell.appendChild(credit.idField);
+        if (credit.jeField) accountCell.appendChild(credit.jeField);
+        if (credit.accountField) accountCell.appendChild(credit.accountField);
+        if (credit.amountField) amountCell.appendChild(credit.amountField);
+        if (credit.deleteField) deleteCell.appendChild(credit.deleteField);
+        if (credit.deleteButton) deleteCell.appendChild(credit.deleteButton);
+      }
+    });
+    
+    // 空行を削除または非表示
+    cleanupEmptyRows();
+  }
+  
+  // 借方・貸方両方とも空欄の行を削除または非表示
+  function cleanupEmptyRows() {
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.forEach(row => {
+      const hasDebit = row.querySelector('td:nth-child(1) [name*="debits"][name*="-account"]');
+      const hasCredit = row.querySelector('td:nth-child(4) [name*="credits"][name*="-account"]');
+      
+      if (!hasDebit && !hasCredit) {
+        row.style.display = 'none';
+      }
     });
   }
   
