@@ -23,8 +23,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (idField) debitAccountCell.appendChild(idField);
     if (jeField) debitAccountCell.appendChild(jeField);
-    if (accountField) debitAccountCell.appendChild(accountField);
-    if (amountField) debitAmountCell.appendChild(amountField);
+    if (accountField) {
+      debitAccountCell.appendChild(accountField);
+      // エラー表示用のdivを追加
+      const accountErrorDiv = document.createElement('div');
+      accountErrorDiv.className = 'field-error';
+      accountErrorDiv.id = `debit-${index}-account-error`;
+      debitAccountCell.appendChild(accountErrorDiv);
+    }
+    if (amountField) {
+      debitAmountCell.appendChild(amountField);
+      // エラー表示用のdivを追加
+      const amountErrorDiv = document.createElement('div');
+      amountErrorDiv.className = 'field-error';
+      amountErrorDiv.id = `debit-${index}-amount-error`;
+      debitAmountCell.appendChild(amountErrorDiv);
+    }
     
     const deleteCheckbox = document.createElement('input');
     deleteCheckbox.type = 'checkbox';
@@ -58,8 +72,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (idField) creditAccountCell.appendChild(idField);
     if (jeField) creditAccountCell.appendChild(jeField);
-    if (accountField) creditAccountCell.appendChild(accountField);
-    if (amountField) creditAmountCell.appendChild(amountField);
+    if (accountField) {
+      creditAccountCell.appendChild(accountField);
+      // エラー表示用のdivを追加
+      const accountErrorDiv = document.createElement('div');
+      accountErrorDiv.className = 'field-error';
+      accountErrorDiv.id = `credit-${index}-account-error`;
+      creditAccountCell.appendChild(accountErrorDiv);
+    }
+    if (amountField) {
+      creditAmountCell.appendChild(amountField);
+      // エラー表示用のdivを追加
+      const amountErrorDiv = document.createElement('div');
+      amountErrorDiv.className = 'field-error';
+      amountErrorDiv.id = `credit-${index}-amount-error`;
+      creditAmountCell.appendChild(amountErrorDiv);
+    }
     
     const deleteCheckbox = document.createElement('input');
     deleteCheckbox.type = 'checkbox';
@@ -160,8 +188,40 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log(`Getting existing debit cells for index ${accountField}`);
     if (idField) accountCell.appendChild(idField);
     if (jeField) accountCell.appendChild(jeField);
-    if (accountField) accountCell.appendChild(accountField);
-    if (amountField) amountCell.appendChild(amountField);
+    if (accountField) {
+      // エラーリストを先に取得してから移動
+      const accountErrorList = document.querySelector(`#id_debits-${index}-account + .errorlist`);
+      accountCell.appendChild(accountField);
+      // エラー表示用のdivを追加
+      const accountErrorDiv = document.createElement('div');
+      accountErrorDiv.className = 'field-error';
+      accountErrorDiv.id = `debit-${index}-account-error`;
+      
+      // Djangoから渡されたエラーを表示
+      if (accountErrorList) {
+        accountErrorDiv.innerHTML = accountErrorList.innerHTML;
+        accountField.classList.add('error-input');
+        accountErrorList.remove(); // 元のエラーリストを削除
+      }
+      accountCell.appendChild(accountErrorDiv);
+    }
+    if (amountField) {
+      // エラーリストを先に取得してから移動
+      const amountErrorList = document.querySelector(`#id_debits-${index}-amount + .errorlist`);
+      amountCell.appendChild(amountField);
+      // エラー表示用のdivを追加
+      const amountErrorDiv = document.createElement('div');
+      amountErrorDiv.className = 'field-error';
+      amountErrorDiv.id = `debit-${index}-amount-error`;
+      
+      // Djangoから渡されたエラーを表示
+      if (amountErrorList) {
+        amountErrorDiv.innerHTML = amountErrorList.innerHTML;
+        amountField.classList.add('error-input');
+        amountErrorList.remove(); // 元のエラーリストを削除
+      }
+      amountCell.appendChild(amountErrorDiv);
+    }
     
     if (deleteField) {
       deleteField.style.display = 'none';
@@ -193,8 +253,40 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (idField) accountCell.appendChild(idField);
     if (jeField) accountCell.appendChild(jeField);
-    if (accountField) accountCell.appendChild(accountField);
-    if (amountField) amountCell.appendChild(amountField);
+    if (accountField) {
+      // エラーリストを先に取得してから移動
+      const accountErrorList = document.querySelector(`#id_credits-${index}-account + .errorlist`);
+      accountCell.appendChild(accountField);
+      // エラー表示用のdivを追加
+      const accountErrorDiv = document.createElement('div');
+      accountErrorDiv.className = 'field-error';
+      accountErrorDiv.id = `credit-${index}-account-error`;
+      
+      // Djangoから渡されたエラーを表示
+      if (accountErrorList) {
+        accountErrorDiv.innerHTML = accountErrorList.innerHTML;
+        accountField.classList.add('error-input');
+        accountErrorList.remove(); // 元のエラーリストを削除
+      }
+      accountCell.appendChild(accountErrorDiv);
+    }
+    if (amountField) {
+      // エラーリストを先に取得してから移動
+      const amountErrorList = document.querySelector(`#id_credits-${index}-amount + .errorlist`);
+      amountCell.appendChild(amountField);
+      // エラー表示用のdivを追加
+      const amountErrorDiv = document.createElement('div');
+      amountErrorDiv.className = 'field-error';
+      amountErrorDiv.id = `credit-${index}-amount-error`;
+      
+      // Djangoから渡されたエラーを表示
+      if (amountErrorList) {
+        amountErrorDiv.innerHTML = amountErrorList.innerHTML;
+        amountField.classList.add('error-input');
+        amountErrorList.remove(); // 元のエラーリストを削除
+      }
+      amountCell.appendChild(amountErrorDiv);
+    }
     
     if (deleteField) {
       deleteField.style.display = 'none';

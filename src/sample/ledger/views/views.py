@@ -107,7 +107,6 @@ class FiscalPeriodUpdateView(UpdateView):
 #     success_url = reverse_lazy("fiscal_period_list")
 
 
-
 class JournalEntryListView(ListView):
     model = JournalEntry
     template_name = "ledger/journal_entry/list.html"
@@ -172,16 +171,26 @@ class JournalEntryFormMixin:
         credit_formset = context.get("credit_formset")
         fixed_asset_form = context.get("fixed_asset_form")
 
-        # フォームセットのバリデーション
-        if not debit_formset.is_valid():
-            print(debit_formset.non_form_errors())
+        # フォームセットのバリデーション（早期リターンせず両方チェック）
+        debit_valid = debit_formset.is_valid()
+        credit_valid = credit_formset.is_valid()
+
+        if not debit_valid:
+            print("Debit formset errors:", debit_formset.non_form_errors())
+        if not credit_valid:
+            print("Credit formset errors:", credit_formset.non_form_errors())
+
+        # どちらかが無効なら早期リターン
+        if not (debit_valid and credit_valid):
             return self.form_invalid(form)
-        if not credit_formset.is_valid():
-            print(credit_formset.non_form_errors())
-            return self.form_invalid(form)
-        
-        is_register_checked = self.request.POST.get('register_as_fixed_asset') in ['on', 'True', 'true', '1']
-        
+
+        is_register_checked = self.request.POST.get("register_as_fixed_asset") in [
+            "on",
+            "True",
+            "true",
+            "1",
+        ]
+
         if is_register_checked:
             if not fixed_asset_form.is_valid():
                 return self.form_invalid(form)
