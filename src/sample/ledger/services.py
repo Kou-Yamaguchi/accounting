@@ -423,6 +423,7 @@ def calculate_account_total(account: Account, day_range: DayRange) -> Decimal:
     return total_amount
 
 
+# TODO: get_amount_totalに命名変更
 def get_total_by_account_type(
     account_type: Literal["asset", "liability", "equity", "revenue", "expense"],
     day_range: DayRange,
