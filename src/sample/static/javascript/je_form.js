@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const creditTemplate = document.getElementById('credit-template').innerHTML;
 
   function createCells(index, isDebit) {
-    const newFormHtml = debitTemplate.replace(/__prefix__/g, index);
+    const newFormHtml = isDebit ? debitTemplate.replace(/__prefix__/g, index) : creditTemplate.replace(/__prefix__/g, index);
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = newFormHtml;
 
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
     return {accountCell, amountCell, deleteCell};
   }
 
-  function attatchDebitCells(debitAccountCell, debitAmountCell, debitDeleteCell) {
+  function attachCells(accountCell, amountCell, deleteCell, isDebit) {
     function attachContents(targetCell, sourceCell) {
       while (sourceCell.firstChild) {
         targetCell.appendChild(sourceCell.firstChild);
@@ -98,13 +98,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const debitAccount = row.querySelector('td:first-child [name*="debits"][name*="-account"]');
+      const accountField = row.querySelector(isDebit ? 'td:first-child [name*="debits"][name*="-account"]' : 'td:nth-child(4) [name*="credits"][name*="-account"]');
       
-      if (!debitAccount) {
-        // この行には借方がないので、借方セルを追加
-        attachContents(row.children[0], debitAccountCell);
-        attachContents(row.children[1], debitAmountCell);
-        attachContents(row.children[2], debitDeleteCell);
+      if (!accountField) {
+        // この行には該当する方がないので、セルを追加
+        const accountCellIndex = isDebit ? 0 : 3;
+        const amountCellIndex = isDebit ? 1 : 4;
+        const deleteCellIndex = isDebit ? 2 : 5;
+        
+        attachContents(row.children[accountCellIndex], accountCell);
+        attachContents(row.children[amountCellIndex], amountCell);
+        attachContents(row.children[deleteCellIndex], deleteCell);
         inserted = true;
         break;
       }
@@ -113,46 +117,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // 空きがなければ新しい行を追加
     if (!inserted) {
       const newRow = createRow();
-      attachContents(newRow.children[0], debitAccountCell);
-      attachContents(newRow.children[1], debitAmountCell);
-      attachContents(newRow.children[2], debitDeleteCell);
-      tbody.appendChild(newRow);
-    }
-  }
-
-  function attatchCreditCells(creditAccountCell, creditAmountCell, creditDeleteCell) {
-    function attachContents(targetCell, sourceCell) {
-      while (sourceCell.firstChild) {
-        targetCell.appendChild(sourceCell.firstChild);
-      }
-    }
-    const rows = tbody.querySelectorAll('tr');
-    let inserted = false;
-    
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const creditAccount = row.querySelector('td:nth-child(4) [name*="credits"][name*="-account"]');
+      const accountCellIndex = isDebit ? 0 : 3;
+      const amountCellIndex = isDebit ? 1 : 4;
+      const deleteCellIndex = isDebit ? 2 : 5;
       
-      if (!creditAccount) {
-        // この行には貸方がないので、貸方セルを追加
-        attachContents(row.children[3], creditAccountCell);
-        attachContents(row.children[4], creditAmountCell);
-        attachContents(row.children[5], creditDeleteCell);
-        inserted = true;
-        break;
-      }
-    }
-    
-    // 空きがなければ新しい行を追加
-    if (!inserted) {
-      const newRow = createRow();
-      attachContents(newRow.children[3], creditAccountCell);
-      attachContents(newRow.children[4], creditAmountCell);
-      attachContents(newRow.children[5], creditDeleteCell);
+      attachContents(newRow.children[accountCellIndex], accountCell);
+      attachContents(newRow.children[amountCellIndex], amountCell);
+      attachContents(newRow.children[deleteCellIndex], deleteCell);
       tbody.appendChild(newRow);
     }
   }
-
+  
   // 既存の借方フィールドを取得（Djangoが既にレンダリング済み）
   function getExistingDebitCells(index) {
     const accountCell = document.createElement('td');
@@ -311,16 +286,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (debitCount === 0) {
       debitCount = 1;
       document.querySelector('#id_debits-TOTAL_FORMS').value = debitCount;
-      // const cells = createDebitCells(0);
       const cells = createCells(0, true);
-      attatchDebitCells(cells.debitAccountCell, cells.debitAmountCell, cells.debitDeleteCell);
+      attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, true);
     }
 
     if (creditCount === 0) {
       creditCount = 1;
       document.querySelector('#id_credits-TOTAL_FORMS').value = creditCount;
       const cells = createCells(0, false);
-      attatchCreditCells(cells.creditAccountCell, cells.creditAmountCell, cells.creditDeleteCell);
+      attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, false);
     }
 
     attachRemoveHandlers();
@@ -357,8 +331,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // 借方行を追加
   document.getElementById('add-debit-button').addEventListener('click', function () {
     const formCount = parseInt(document.querySelector('#id_debits-TOTAL_FORMS').value);
-    const { debitAccountCell, debitAmountCell, debitDeleteCell } = createCells(formCount, true);
-    attatchDebitCells(debitAccountCell, debitAmountCell, debitDeleteCell);
+    const { accountCell, amountCell, deleteCell } = createCells(formCount, true);
+    attachCells(accountCell, amountCell, deleteCell, true);
     
     document.querySelector('#id_debits-TOTAL_FORMS').value = formCount + 1;
     
@@ -369,8 +343,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // 貸方行を追加
   document.getElementById('add-credit-button').addEventListener('click', function () {
     const formCount = parseInt(document.querySelector('#id_credits-TOTAL_FORMS').value);
-    const { creditAccountCell, creditAmountCell, creditDeleteCell } = createCells(formCount, false);
-    attatchCreditCells(creditAccountCell, creditAmountCell, creditDeleteCell);
+    const { accountCell, amountCell, deleteCell } = createCells(formCount, false);
+    attachCells(accountCell, amountCell, deleteCell, false);
     
     document.querySelector('#id_credits-TOTAL_FORMS').value = formCount + 1;
     
