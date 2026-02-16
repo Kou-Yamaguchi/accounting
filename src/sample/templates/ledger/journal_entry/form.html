@@ -14,9 +14,43 @@
 
   <h2>ヘッダー情報</h2>
   {% bootstrap_form form %}
-  <!-- {{ form.errors }} -->
+  
+  {% if form.errors %}
+  <div class="alert alert-danger" role="alert">
+    <strong>ヘッダー情報のエラー:</strong>
+    {{ form.errors }}
+  </div>
+  {% endif %}
 
   <h3>仕訳明細</h3>
+  
+  <!-- フォームセット全体のエラー表示（借貸不一致など） -->
+  {% if debit_formset.non_form_errors or credit_formset.non_form_errors %}
+  <div class="alert alert-danger" role="alert">
+    <strong>仕訳明細のエラー:</strong>
+    {% if debit_formset.non_form_errors %}
+    <div class="mb-2">
+      <strong>借方:</strong>
+      <ul class="mb-0">
+        {% for error in debit_formset.non_form_errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if credit_formset.non_form_errors %}
+    <div>
+      <strong>貸方:</strong>
+      <ul class="mb-0">
+        {% for error in credit_formset.non_form_errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  
   <div class="table-responsive">
     <table class="table table-bordered" id="journal-entry-table">
       <thead>

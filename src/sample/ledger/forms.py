@@ -120,18 +120,39 @@ class CreditForm(forms.ModelForm):
 class BaseTotalFormSet(forms.BaseInlineFormSet):
     def clean(self):
         super().clean()
-        total_amount = Decimal("0.00")
 
-        for form in self.forms:
+        # 非フォームエラーのリストを初期化（まだ存在しない場合）
+        if not hasattr(self, "_non_form_errors") or self._non_form_errors is None:
+            self._non_form_errors = []
+
+        total_amount = Decimal("0.00")
+        has_errors = False
+
+        for i, form in enumerate(self.forms):
             if form.cleaned_data.get("DELETE", False):
                 continue
 
             amount = form.cleaned_data.get(AMOUNT)
             if amount is None:
-                raise forms.ValidationError(ErrorMessages.MESSAGE_0004.value)
+                # フォームセット全体のエラーとして追加（早期リターンしない）
+                # self.add_error(None, f"{i+1}行目: {ErrorMessages.MESSAGE_0004.value}")
+                # has_errors = True
+                self._non_form_errors.append(
+                    forms.ValidationError(
+                        f"{i+1}行目: {ErrorMessages.MESSAGE_0004.value}"
+                    )
+                )
+                continue
 
             if amount <= 0:
-                raise forms.ValidationError(ErrorMessages.MESSAGE_0003.value)
+                # self.add_error(None, f"{i+1}行目: {ErrorMessages.MESSAGE_0003.value}")
+                # has_errors = True
+                self._non_form_errors.append(
+                    forms.ValidationError(
+                        f"{i+1}行目: {ErrorMessages.MESSAGE_0003.value}"
+                    )
+                )
+                continue
 
             total_amount += amount
 
@@ -221,7 +242,6 @@ class AdjustmentJournalEntryForm(forms.ModelForm):
         widgets = {
             "summary": forms.TextInput(attrs={"class": "form-control"}),
         }
-
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
