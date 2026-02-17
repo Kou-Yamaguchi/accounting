@@ -7,3 +7,4 @@ django-bootstrap5
 django-mathfilters
 openpyxl
 pandas
+weasyprint
