@@ -27,15 +27,12 @@ def journal_pdf(request):
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
 
-    # 基本のクエリセット
-    journal_entries = JournalEntry.objects.all()
-
     # 日付フィルタリング
     if start_date_str and end_date_str:
         try:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
             end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-            journal_entries = journal_entries.filter(
+            journal_entries = JournalEntry.objects.filter(
                 date__gte=start_date, date__lte=end_date
             )
             period = (
@@ -43,8 +40,10 @@ def journal_pdf(request):
             )
         except ValueError:
             # 日付のパースに失敗した場合は全件取得
+            journal_entries = JournalEntry.objects.all()
             period = "全期間"
     else:
+        journal_entries = JournalEntry.objects.all()
         period = "全期間"
 
     journal_entries = journal_entries.order_by("date")
