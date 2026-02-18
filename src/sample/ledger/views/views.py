@@ -25,6 +25,7 @@ from ledger.forms import (
 from ledger.services import (
     get_all_journal_entries_for_account,
     collect_account_set_from_je,
+    determine_counter_party_name,
 )
 from enums.error_messages import ErrorMessages
 
@@ -275,28 +276,6 @@ class GeneralLedgerView(TemplateView):
         "ledger/general_ledger_partial.html"  # 使用するテンプレートファイル名
     )
 
-    def _determine_counter_party_name(self, other_accounts: set[Account]) -> str:
-        """
-        相手勘定科目の名前を決定するユーティリティメソッド。
-
-        Args:
-            other_accounts (set[Account]): 対象勘定科目以外の勘定科目のセット
-
-        Returns:
-            str: 相手勘定科目の名前
-        """
-        counter_party_name = ""
-        if len(other_accounts) == 1:
-            # 相手勘定科目が1つの場合、その名前をセット
-            counter_party_name = [acc.name for acc in other_accounts][0]
-        elif len(other_accounts) > 1:
-            # 相手勘定科目が複数の場合
-            counter_party_name = "諸口"
-        else:
-            # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
-            counter_party_name = "取引エラー"
-        return counter_party_name
-
     def _get_entry_record(
         self, je: JournalEntry, is_debit_entry: bool, counter_party_name: str
     ) -> dict:
@@ -362,7 +341,7 @@ class GeneralLedgerView(TemplateView):
             else:
                 other_accounts = all_debits
 
-            counter_party_name = self._determine_counter_party_name(other_accounts)
+            counter_party_name = determine_counter_party_name(other_accounts)
 
             # 明細タイプによって借方・貸方金額を決定
 
