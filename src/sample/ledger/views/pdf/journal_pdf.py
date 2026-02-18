@@ -5,9 +5,11 @@ from weasyprint import HTML
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.utils.timezone import now
+from django.db.models import Prefetch
 
 from ledger.models import JournalEntry, Debit, Credit
 from ledger.dtos import JournalRow
+from ledger.services import calc_total_debit_amount_from_journal_entry_list, calc_total_credit_amount_from_journal_entry_list
 
 
 def journal_pdf(request):
@@ -35,7 +37,19 @@ def journal_pdf(request):
             end_date: date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
             journal_entries: list[JournalEntry] = JournalEntry.objects.filter(
                 date__gte=start_date, date__lte=end_date
+            ).prefetch_related(
+                Prefetch(
+                    "debits",
+                    queryset=Debit.objects.select_related("account"),
+                    to_attr="prefetched_debits",
+                ),
+                Prefetch(
+                    "credits",
+                    queryset=Credit.objects.select_related("account"),
+                    to_attr="prefetched_credits",
+                ),
             )
+
             period = (
                 f"{start_date.strftime('%Y/%m/%d')} - {end_date.strftime('%Y/%m/%d')}"
             )
@@ -52,8 +66,8 @@ def journal_pdf(request):
     journal_rows: list[JournalRow] = []
 
     for entry in journal_entries:
-        debits: list[Debit] = list(entry.debits.all())
-        credits: list[Credit] = list(entry.credits.all())
+        debits: list[Debit] = list(entry.prefetched_debits)
+        credits: list[Credit] = list(entry.prefetched_credits)
 
         journal_rows.append(
             JournalRow(
@@ -82,6 +96,17 @@ def journal_pdf(request):
                     credit_amount=credit_amount,
                 )
             )
+
+    total_debit = calc_total_debit_amount_from_journal_entry_list(journal_entries)
+    total_credit = calc_total_credit_amount_from_journal_entry_list(journal_entries)
+
+    journal_rows.append(
+        JournalRow(
+            description="合計",
+            debit_amount=str(total_debit),
+            credit_amount=str(total_credit),
+        )
+    )
 
     context = {
         "journal_rows": journal_rows,

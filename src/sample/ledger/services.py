@@ -723,3 +723,61 @@ def prepare_pareto_chart_data(
         cumulative_percentages.append(cumulative)
 
     return company_names, sales_percentages, cumulative_percentages
+
+
+def calc_total_debit_from_journal_entry(je: JournalEntry) -> Decimal:
+    """
+    指定された仕訳エントリの借方合計金額を計算します。
+
+    Args:
+        je (JournalEntry): 対象の仕訳エントリ
+
+    Returns:
+        Decimal: 借方合計金額
+    """
+    total_debit = sum(debit.amount for debit in je.prefetched_debits)
+    return total_debit
+
+
+def calc_total_credit_from_journal_entry(je: JournalEntry) -> Decimal:
+    """
+    指定された仕訳エントリの貸方合計金額を計算します。
+
+    Args:
+        je (JournalEntry): 対象の仕訳エントリ
+
+    Returns:
+        Decimal: 貸方合計金額
+    """
+    total_credit = sum(credit.amount for credit in je.prefetched_credits)
+    return total_credit
+
+
+# TODO: 長すぎるので命名変更検討
+def calc_total_debit_amount_from_journal_entry_list(journal_entries: list[JournalEntry]) -> Decimal:
+    """
+    指定された仕訳エントリのリストの借方合計金額を計算します。
+
+    Args:
+        journal_entries (list[JournalEntry]): 対象の仕訳エントリのリスト
+
+    Returns:
+        Decimal: 借方合計金額
+    """
+    total_debit = sum(calc_total_debit_from_journal_entry(je) for je in journal_entries)
+    return total_debit
+
+
+# TODO: 長すぎるので命名変更検討
+def calc_total_credit_amount_from_journal_entry_list(journal_entries: list[JournalEntry]) -> Decimal:
+    """
+    指定された仕訳エントリのリストの貸方合計金額を計算します。
+
+    Args:
+        journal_entries (list[JournalEntry]): 対象の仕訳エントリのリスト
+
+    Returns:
+        Decimal: 貸方合計金額
+    """
+    total_credit = sum(calc_total_credit_from_journal_entry(je) for je in journal_entries)
+    return total_credit
