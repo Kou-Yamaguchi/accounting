@@ -200,7 +200,7 @@ def collect_account_set_from_je(je: JournalEntry, is_debit: bool) -> set[Account
     注意: 事前にprefetch_relatedでDebit/Creditをprefetched_debits/prefetched_creditsとして設定しておく必要があります。
     Args:
         je (JournalEntry): 仕訳エントリ
-        is_debit (bool): 借方勘定科目を収集するかどうか
+        is_debit (bool): 借方勘定科目を収集するか、貸方勘定科目を収集するかのフラグ
 
     Returns:
         set[Account]: 収集された勘定科目のセット
@@ -209,6 +209,30 @@ def collect_account_set_from_je(je: JournalEntry, is_debit: bool) -> set[Account
         return set(debit.account for debit in je.prefetched_debits)
     else:
         return set(credit.account for credit in je.prefetched_credits)
+
+
+def determine_counter_party_name(accounts: set[Account]) -> str:
+    """
+    相手勘定科目の名前を決定するユーティリティメソッド。
+    一つの場合にはその名前を返し、複数の場合は「諸口」、0の場合は「取引エラー」とする。
+
+    Args:
+        accounts (set[Account]): 対象勘定科目以外の勘定科目のセット
+
+    Returns:
+        str: 相手勘定科目の名前
+    """
+    counter_party_name = ""
+    if len(accounts) == 1:
+        # 相手勘定科目が1つの場合、その名前をセット
+        counter_party_name = [acc.name for acc in accounts][0]
+    elif len(accounts) > 1:
+        # 相手勘定科目が複数の場合
+        counter_party_name = "諸口"
+    else:
+        # 相手勘定科目が0の場合（例：自己取引、またはデータ不備）
+        counter_party_name = "取引エラー"
+    return counter_party_name
 
 
 def calculate_monthly_balance(account_name: str, year: int, month: int) -> dict:
