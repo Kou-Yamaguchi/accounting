@@ -7,10 +7,13 @@
     @page {
       size: A4;
       margin: 15mm;
+      @bottom-right {
+        content: counter(page);
+      }
     }
 
     body {
-      font-family: "IPAexGothic";
+      font-family: "Yu Gothic Medium", "Yu Gothic", sans-serif;
       font-size: 10pt;
     }
 
@@ -31,12 +34,6 @@
 
     .right {
       text-align: right;
-    }
-
-    @page {
-      @bottom-right {
-        content: counter(page);
-      }
     }
   </style>
 </head>

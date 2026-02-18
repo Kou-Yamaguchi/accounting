@@ -736,6 +736,9 @@ def calc_total_debit_from_journal_entry(je: JournalEntry) -> Decimal:
         Decimal: 借方合計金額
     """
     total_debit = sum(debit.amount for debit in je.prefetched_debits)
+    if total_debit == 0:
+        print(f"Warning: 仕訳ID {je.id} の借方合計金額が0です。データの確認を推奨します。")
+        return Decimal("0.00")
     return total_debit
 
 
@@ -750,6 +753,9 @@ def calc_total_credit_from_journal_entry(je: JournalEntry) -> Decimal:
         Decimal: 貸方合計金額
     """
     total_credit = sum(credit.amount for credit in je.prefetched_credits)
+    if total_credit == 0:
+        print(f"Warning: 仕訳ID {je.id} の貸方合計金額が0です。データの確認を推奨します。")
+        return Decimal("0.00")
     return total_credit
 
 
@@ -765,6 +771,9 @@ def calc_total_debit_amount_from_journal_entry_list(journal_entries: list[Journa
         Decimal: 借方合計金額
     """
     total_debit = sum(calc_total_debit_from_journal_entry(je) for je in journal_entries)
+    if total_debit == 0:
+        print("Warning: 借方合計金額が0です。データの確認を推奨します。")
+        return Decimal("0.00")
     return total_debit
 
 
@@ -780,4 +789,7 @@ def calc_total_credit_amount_from_journal_entry_list(journal_entries: list[Journ
         Decimal: 貸方合計金額
     """
     total_credit = sum(calc_total_credit_from_journal_entry(je) for je in journal_entries)
+    if total_credit == 0:
+        print("Warning: 貸方合計金額が0です。データの確認を推奨します。")
+        return Decimal("0.00")
     return total_credit

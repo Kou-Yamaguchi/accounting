@@ -55,10 +55,32 @@ def journal_pdf(request):
             )
         except ValueError:
             # 日付のパースに失敗した場合は全件取得
-            journal_entries = JournalEntry.objects.all()
+            journal_entries = JournalEntry.objects.all().prefetch_related(
+                Prefetch(
+                    "debits",
+                    queryset=Debit.objects.select_related("account"),
+                    to_attr="prefetched_debits",
+                ),
+                Prefetch(
+                    "credits",
+                    queryset=Credit.objects.select_related("account"),
+                    to_attr="prefetched_credits",
+                ),
+            )
             period = "全期間"
     else:
-        journal_entries = JournalEntry.objects.all()
+        journal_entries = JournalEntry.objects.all().prefetch_related(
+                Prefetch(
+                    "debits",
+                    queryset=Debit.objects.select_related("account"),
+                    to_attr="prefetched_debits",
+                ),
+                Prefetch(
+                    "credits",
+                    queryset=Credit.objects.select_related("account"),
+                    to_attr="prefetched_credits",
+                ),
+            )
         period = "全期間"
 
     journal_entries: list[JournalEntry] = list(journal_entries.order_by("date"))
@@ -69,14 +91,17 @@ def journal_pdf(request):
         debits: list[Debit] = list(entry.prefetched_debits)
         credits: list[Credit] = list(entry.prefetched_credits)
 
+        first_debit: Debit = debits[0] if debits else None
+        first_credit: Credit = credits[0] if credits else None
+
         journal_rows.append(
             JournalRow(
                 date=entry.date.strftime("%Y/%m/%d"),
                 description=entry.summary,
-                debit_account=debits[0].account.name,
-                debit_amount=str(debits[0].amount),
-                credit_account=credits[0].account.name,
-                credit_amount=str(credits[0].amount)
+                debit_account=first_debit.account.name if first_debit else "",
+                debit_amount=str(first_debit.amount) if first_debit else "0",
+                credit_account=first_credit.account.name if first_credit else "",
+                credit_amount=str(first_credit.amount) if first_credit else "0"
             )
         )
 
