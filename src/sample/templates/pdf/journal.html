@@ -20,14 +20,14 @@
     </tr>
   </thead>
   <tbody>
-    {% for entry in journal_entries %}
+    {% for row in journal_rows %}
     <tr>
-      <td>{{ entry.date }}</td>
-      <td>{{ entry.debit_account }}</td>
-      <td class="right">{{ entry.debit_amount|floatformat:2 }}</td>
-      <td>{{ entry.credit_account }}</td>
-      <td class="right">{{ entry.credit_amount|floatformat:2 }}</td>
-      <td>{{ entry.summary }}</td>
+      <td>{{ row.date }}</td>
+      <td>{{ row.debit_account }}</td>
+      <td class="right">{{ row.debit_amount|floatformat:2 }}</td>
+      <td>{{ row.credit_account }}</td>
+      <td class="right">{{ row.credit_amount|floatformat:2 }}</td>
+      <td>{{ row.description }}</td>
     </tr>
     {% endfor %}
   </tbody>
