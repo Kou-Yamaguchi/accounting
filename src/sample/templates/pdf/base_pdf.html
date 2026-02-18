@@ -32,6 +32,12 @@
     .right {
       text-align: right;
     }
+
+    @page {
+      @bottom-right {
+        content: counter(page);
+      }
+    }
   </style>
 </head>
 
