@@ -35,6 +35,7 @@ from ledger.views.views import (
 )
 from ledger.views.adjustment_entry import AdjustmentEntryCreateView
 from ledger.views.pdf.journal_pdf import journal_pdf
+from ledger.views.pdf.ledger_pdf import ledger_pdf
 
 urlpatterns = [
     path("new/", JournalEntryCreateView.as_view(), name="journal_entry_new"),
@@ -89,6 +90,11 @@ urlpatterns = [
         "general_ledger/",
         TemplateView.as_view(template_name="ledger/general_ledger.html"),
         name="general_ledger",
+    ),
+    path(
+        "general_ledger/pdf/",
+        ledger_pdf,
+        name="general_ledger_pdf",
     ),
     path(
         "balance_sheet/",
