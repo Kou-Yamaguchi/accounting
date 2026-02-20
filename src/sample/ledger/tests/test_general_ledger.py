@@ -6,6 +6,7 @@ from django.test import TestCase, RequestFactory
 from ledger.models import Account
 from ledger.views.views import GeneralLedgerView
 from ledger.tests.utils import create_accounts, create_journal_entry, AccountData
+from ledger.dtos import LedgerRow
 
 
 class GeneralLedgerViewTest(TestCase):
@@ -59,13 +60,13 @@ class GeneralLedgerViewTest(TestCase):
         ledger_entries = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 1)
 
-        entry = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[0]
         # チェック項目
         self.assertEqual(
-            entry["counter_party"], "売上"
+            entry.counter_account_name, "売上"
         )  # 相手勘定が単一科目名であること
-        self.assertEqual(entry["debit_amount"], Decimal("100.00"))
-        self.assertEqual(entry["credit_amount"], Decimal("0"))
+        self.assertEqual(entry.debit_amount, Decimal("100.00"))
+        self.assertEqual(entry.credit_amount, Decimal("0"))
 
     def test_single_vs_single_entry_credit_side(self):
         """
@@ -85,13 +86,13 @@ class GeneralLedgerViewTest(TestCase):
         ledger_entries = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 1)
 
-        entry = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[0]
         # チェック項目
         self.assertEqual(
-            entry["counter_party"], "仕入"
+            entry.counter_account_name, "仕入"
         )  # 相手勘定が単一科目名であること
-        self.assertEqual(entry["debit_amount"], Decimal("0"))
-        self.assertEqual(entry["credit_amount"], Decimal("50.00"))
+        self.assertEqual(entry.debit_amount, Decimal("0"))
+        self.assertEqual(entry.credit_amount, Decimal("50.00"))
 
     # ----------------------------------------------------
     # 2. 1 vs 多 (複合仕訳) のテスト
@@ -118,13 +119,13 @@ class GeneralLedgerViewTest(TestCase):
         ledger_entries = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 1)
 
-        entry = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[0]
         # チェック項目
         self.assertEqual(
-            entry["counter_party"], "現金"
+            entry.counter_account_name, "現金"
         )  # 相手勘定が単一科目名であること
-        self.assertEqual(entry["debit_amount"], Decimal("0.00"))
-        self.assertEqual(entry["credit_amount"], Decimal("100.00"))
+        self.assertEqual(entry.debit_amount, Decimal("0.00"))
+        self.assertEqual(entry.credit_amount, Decimal("100.00"))
 
     def test_multiple_entry_credit_side(self):
         """
@@ -147,11 +148,11 @@ class GeneralLedgerViewTest(TestCase):
         ledger_entries = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 1)
 
-        entry = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[0]
         # チェック項目
-        self.assertEqual(entry["counter_party"], "売上")  # 相手勘定が売上であること
-        self.assertEqual(entry["debit_amount"], Decimal("80.00"))
-        self.assertEqual(entry["credit_amount"], Decimal("0.00"))
+        self.assertEqual(entry.counter_account_name, "売上")  # 相手勘定が売上であること
+        self.assertEqual(entry.debit_amount, Decimal("80.00"))
+        self.assertEqual(entry.credit_amount, Decimal("0.00"))
 
     def test_single_vs_multiple_entry_debit_side(self):
         """
@@ -174,11 +175,11 @@ class GeneralLedgerViewTest(TestCase):
         ledger_entries = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 1)
 
-        entry = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[0]
         # チェック項目
-        self.assertEqual(entry["counter_party"], "諸口")  # 相手勘定が諸口であること
-        self.assertEqual(entry["debit_amount"], Decimal("150.00"))
-        self.assertEqual(entry["credit_amount"], Decimal("0"))
+        self.assertEqual(entry.counter_account_name, "諸口")  # 相手勘定が諸口であること
+        self.assertEqual(entry.debit_amount, Decimal("150.00"))
+        self.assertEqual(entry.credit_amount, Decimal("0"))
 
     def test_single_vs_multiple_entry_credit_side(self):
         """
@@ -198,14 +199,14 @@ class GeneralLedgerViewTest(TestCase):
         request = self.factory.get(self.url_template.format(account_name="売上"))
         response = GeneralLedgerView.as_view()(request, account_name="売上")
 
-        ledger_entries = response.context_data["ledger_entries"]
+        ledger_entries: list[LedgerRow] = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 1)
 
-        entry = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[0]
         # チェック項目
-        self.assertEqual(entry["counter_party"], "諸口")  # 相手勘定が諸口であること
-        self.assertEqual(entry["debit_amount"], Decimal("0"))
-        self.assertEqual(entry["credit_amount"], Decimal("100.00"))
+        self.assertEqual(entry.counter_account_name, "諸口")  # 相手勘定が諸口であること
+        self.assertEqual(entry.debit_amount, Decimal("0"))
+        self.assertEqual(entry.credit_amount, Decimal("100.00"))
 
     # ----------------------------------------------------
     # 3. 残高計算の検証
@@ -244,17 +245,17 @@ class GeneralLedgerViewTest(TestCase):
         request = self.factory.get(self.url_template.format(account_name="現金"))
         response = GeneralLedgerView.as_view()(request, account_name="現金")
 
-        ledger_entries = response.context_data["ledger_entries"]
+        ledger_entries: list[LedgerRow] = response.context_data["ledger_entries"]
         self.assertEqual(len(ledger_entries), 3)
 
         # エントリは日付順にソートされていることを前提とする
         # 現金は資産 (Asset) のため、借方が増加、貸方が減少
 
         # 1. 借方 100
-        self.assertEqual(ledger_entries[0]["running_balance"], Decimal("100"))
+        self.assertEqual(ledger_entries[0].balance, Decimal("100"))
 
         # 2. 貸方 40 (100 - 40 = 60)
-        self.assertEqual(ledger_entries[1]["running_balance"], Decimal("60"))
+        self.assertEqual(ledger_entries[1].balance, Decimal("60"))
 
         # 3. 借方 50 (60 + 50 = 110)
-        self.assertEqual(ledger_entries[2]["running_balance"], Decimal("110"))
+        self.assertEqual(ledger_entries[2].balance, Decimal("110"))

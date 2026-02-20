@@ -15,15 +15,15 @@
     {% for entry in ledger_entries %}
     <tr>
       <td>{{ entry.date }}</td>
-      <td>{{ entry.counter_party }}</td>
+      <td>{{ entry.counter_account_name }}</td>
       <td>{{ entry.debit_amount|default:"-" }}</td>
       <td>{{ entry.credit_amount|default:"-" }}</td>
-      {% if entry.running_balance >= 0 %}
+      {% if entry.balance >= 0 %}
       <td>借</td>
       {% else %}
       <td>貸</td>
       {% endif %}
-      <td>{{ entry.running_balance|abs }}</td>
+      <td>{{ entry.balance|abs }}</td>
     </tr>
     {% endfor %}
   </tbody>
