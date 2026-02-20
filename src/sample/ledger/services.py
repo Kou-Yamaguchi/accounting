@@ -18,6 +18,7 @@ from .models import (
     Company,
 )
 from .structures import YearMonth, DayRange, AccountWithTotal
+from .dtos import JournalRow, LedgerRow
 
 
 def get_current_year_month() -> YearMonth:
@@ -793,3 +794,63 @@ def calc_total_credit_amount_from_journal_entry_list(journal_entries: list[Journ
         print("Warning: 貸方合計金額が0です。データの確認を推奨します。")
         return Decimal("0.00")
     return total_credit
+
+
+def get_list_general_ledger_row(account: Account, day_range: DayRange) -> list[LedgerRow]:
+    """
+    指定された勘定科目と期間に基づいて、総勘定元帳の行データを生成します。
+
+    Args:
+        account (Account): 対象の勘定科目
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+
+    Returns:
+        list[LedgerRow]: 総勘定元帳の行データのリスト
+    """
+    journal_entries: list[JournalEntry] = get_all_journal_entries_for_account(account)
+    target_account_id = account.id
+
+    ledger_rows = []
+    running_balance = Decimal("0.00")
+    # TODO: 初期残高は0とするが、実際には前月繰越残高をここにセットする必要がある
+    # running_balance = get_initial_balance(account)
+
+    for je in journal_entries:
+        all_debits: set[Account] = collect_account_set_from_je(je, is_debit=True)
+        all_credits: set[Account] = collect_account_set_from_je(je, is_debit=False)
+
+        is_debit_entry = target_account_id in [acc.id for acc in all_debits]
+
+        if is_debit_entry:
+            counter_party_accounts = all_credits
+        else:
+            counter_party_accounts = all_debits
+
+        if is_debit_entry:
+            debit_amount = je.prefetched_debits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            if debit_amount == 0:
+                print(f"Warning: 仕訳ID {je.id} の借方金額が0です。データの確認を推奨します。")
+            credit_amount = Decimal("0.00")
+            delta_running_balance = debit_amount
+        else:
+            credit_amount = je.prefetched_credits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            if credit_amount == 0:
+                print(f"Warning: 仕訳ID {je.id} の貸方金額が0です。データの確認を推奨します。")
+            debit_amount = Decimal("0.00")
+            delta_running_balance = -credit_amount
+
+        running_balance += delta_running_balance
+
+        counter_party_name = determine_counter_party_name(counter_party_accounts)
+
+        row = LedgerRow(
+            date=je.date,
+            description=je.summary,
+            counter_account_name=counter_party_name,
+            debit_amount=debit_amount,
+            credit_amount=credit_amount,
+            balance=running_balance,
+        )
+        ledger_rows.append(row)
+
+    return ledger_rows
