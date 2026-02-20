@@ -796,7 +796,7 @@ def calc_total_credit_amount_from_journal_entry_list(journal_entries: list[Journ
     return total_credit
 
 
-def get_list_general_ledger_row(account: Account, day_range: DayRange) -> list[LedgerRow]:
+def get_list_general_ledger_row(account: Account, day_range: DayRange = None) -> list[LedgerRow]:
     """
     指定された勘定科目と期間に基づいて、総勘定元帳の行データを生成します。
 
@@ -827,13 +827,15 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange) -> list[L
             counter_party_accounts = all_debits
 
         if is_debit_entry:
-            debit_amount = je.prefetched_debits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            # debit_amount = je.prefetched_debits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            debit_amount = je.prefetched_debits[0].amount
             if debit_amount == 0:
                 print(f"Warning: 仕訳ID {je.id} の借方金額が0です。データの確認を推奨します。")
             credit_amount = Decimal("0.00")
             delta_running_balance = debit_amount
         else:
-            credit_amount = je.prefetched_credits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            # credit_amount = je.prefetched_credits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            credit_amount = je.prefetched_credits[0].amount
             if credit_amount == 0:
                 print(f"Warning: 仕訳ID {je.id} の貸方金額が0です。データの確認を推奨します。")
             debit_amount = Decimal("0.00")
