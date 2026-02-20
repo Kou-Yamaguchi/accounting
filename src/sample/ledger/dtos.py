@@ -18,4 +18,4 @@ class LedgerRow:
     debit_amount: str = ""
     credit_amount: str = ""
     debit_or_credit: str = ""  # "借" または "貸"
-    balance: str = "" 
+    balance: str = ""
