@@ -32,6 +32,25 @@ def get_current_year_month() -> YearMonth:
     return YearMonth(year=today.year, month=today.month)
 
 
+def get_year_month_from_string(year_month_str: str) -> YearMonth:
+    """
+    "YYYY-MM"形式の文字列からYearMonthオブジェクトを生成して返します。
+
+    Args:
+        year_month_str (str): "YYYY-MM"形式の年月文字列
+
+    Returns:
+        YearMonth: 指定された年月を持つYearMonthオブジェクト
+    """
+    try:
+        year_str, month_str = year_month_str.split("-")
+        year = int(year_str)
+        month = int(month_str)
+        return YearMonth(year=year, month=month)
+    except ValueError:
+        raise ValueError("year_month_str must be in 'YYYY-MM' format")
+
+
 def get_last_year_month() -> YearMonth:
     """
     現在の日付の1ヶ月前のYearMonthオブジェクトを生成して返します。
@@ -209,6 +228,40 @@ def calc_each_account_totals(
         for account in accounts
     ]
     return account_totals
+
+
+def get_journal_entries(account: Account, day_range: DayRange = None) -> list[JournalEntry]:
+    """
+    指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
+    N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
+
+    Args:
+        account (Account): 対象の勘定科目
+        day_range (DayRange, optional): 期間範囲。デフォルトはNone（全期間）
+
+    Returns:
+        QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
+    """
+    journal_entries = (
+        JournalEntry.objects.filter(
+            (Q(debits__account=account) | Q(credits__account=account)) & (Q(date__gte=day_range.start) & Q(date__lte=day_range.end)) if day_range else Q()
+        )
+        .distinct()
+        .order_by("date", "pk")
+        .prefetch_related(
+            Prefetch(
+                "debits",
+                queryset=Debit.objects.select_related("account"),
+                to_attr="prefetched_debits",
+            ),
+            Prefetch(
+                "credits",
+                queryset=Credit.objects.select_related("account"),
+                to_attr="prefetched_credits",
+            ),
+        )
+    )
+    return journal_entries
 
 
 def get_all_journal_entries_for_account(account: Account) -> list[JournalEntry]:
@@ -879,7 +932,7 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
             )
         )
 
-    journal_entries: list[JournalEntry] = get_all_journal_entries_for_account(account)
+    journal_entries: list[JournalEntry] = get_journal_entries(account, day_range)
     target_account_id = account.id
 
 

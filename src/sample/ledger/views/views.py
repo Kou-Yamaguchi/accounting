@@ -16,6 +16,7 @@ from django.urls import reverse_lazy
 from django.db import transaction
 
 from ledger.models import JournalEntry, Account, Company, FixedAsset, FiscalPeriod
+from ledger.structures import DayRange, YearMonth
 from ledger.forms import (
     JournalEntryForm,
     DebitFormSet,
@@ -24,6 +25,8 @@ from ledger.forms import (
 )
 from ledger.services import (
     get_list_general_ledger_row,
+    get_month_range,
+    get_year_month_from_string,
 )
 from enums.error_messages import ErrorMessages
 
@@ -279,13 +282,19 @@ class GeneralLedgerView(TemplateView):
 
         # URLから勘定科目名を取得
         account_name: str = self.request.GET.get("account_name", "")
+        year_month: str = self.request.GET.get("year_month", "")
+        if year_month == "":
+            # TODO: 指定がない場合は当月をデフォルトにする。将来的には会計期間の選択も必要かもしれない。
+            raise ValueError("year_month is required")
+        day_range: DayRange = get_month_range(get_year_month_from_string(year_month))
+        
         # account_name: str = self.kwargs["account_name"]
 
         # 1. 勘定科目オブジェクトを取得（存在しない場合は404）
         account: Account = get_object_or_404(Account, name=account_name)
         context["account"] = account
 
-        ledger_rows = get_list_general_ledger_row(account)
+        ledger_rows = get_list_general_ledger_row(account, day_range=day_range)
 
         context["ledger_entries"] = ledger_rows
 
