@@ -120,6 +120,56 @@ def get_initial_balance(account_id: int) -> Decimal:
         return Decimal("0.00")
 
 
+def calculate_cumulative_entry_total(
+    entry: Entry, account: Account, end_day: date
+) -> Decimal:
+    """
+    指定された勘定科目の累積借方・貸方合計を計算するユーティリティメソッド。
+
+    Args:
+        entry (Entry): DebitまたはCreditモデル
+        account (Account): 対象の勘定科目
+        end_day (date): 期末日
+
+    Returns:
+        Decimal: 指定された勘定科目の累積借方or貸方の合計金額
+    """
+    total_amount = entry.objects.filter(
+        account=account,
+        journal_entry__date__lte=end_day,
+    ).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+    return total_amount
+
+
+def get_balance(account: Account, end_day: date) -> Decimal:
+    """
+    指定された日までの勘定科目の残高を計算します。
+
+    Args:
+        account (Account): 対象の勘定科目
+        end_day (date): 期末日
+
+    Returns:
+        Decimal: 指定された期間内の勘定科目の残高
+    """
+    # FIXME: end_dayがNoneの場合の処理をどうするか？現状は0を返すが、実際には全期間の残高を返すべきかもしれない。もしくはエラーにするべきかもしれない。
+    if end_day is None:
+        return Decimal("0.00")
+    debit_total = calculate_cumulative_entry_total(Debit, account, end_day)
+    credit_total = calculate_cumulative_entry_total(Credit, account, end_day)
+
+    balance = debit_total - credit_total
+    
+    return balance
+
+    if account.type in ["asset", "expense"]:
+        balance = debit_total - credit_total
+    else:
+        balance = credit_total - debit_total
+
+    return balance
+
+
 def get_all_account_objects() -> list[Account]:
     """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
     return list(Account.objects.all().order_by("type", "name"))
@@ -807,13 +857,31 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
     Returns:
         list[LedgerRow]: 総勘定元帳の行データのリスト
     """
+    ledger_rows = []
+    running_balance = Decimal("0.00")
+
+    if day_range:
+        last_day = day_range.start - relativedelta(days=1)
+        initial_balance = get_balance(account, last_day)
+
+        running_balance = initial_balance
+
+        # running_balance = get_initial_balance(account)
+        ledger_rows.append(
+            LedgerRow(
+                date=day_range.start if day_range else date.today(),
+                description="前月繰越",
+                counter_account_name="",
+                debit_amount=initial_balance if initial_balance > 0 else Decimal("0.00"),
+                credit_amount=-initial_balance if initial_balance < 0 else Decimal("0.00"),
+                debit_or_credit="借" if initial_balance > 0 else "貸" if initial_balance < 0 else "none",
+                balance=running_balance,
+            )
+        )
+
     journal_entries: list[JournalEntry] = get_all_journal_entries_for_account(account)
     target_account_id = account.id
 
-    ledger_rows = []
-    running_balance = Decimal("0.00")
-    # TODO: 初期残高は0とするが、実際には前月繰越残高をここにセットする必要がある
-    # running_balance = get_initial_balance(account)
 
     for je in journal_entries:
         all_debits: set[Account] = collect_account_set_from_je(je, is_debit=True)
@@ -851,6 +919,7 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
             counter_account_name=counter_party_name,
             debit_amount=debit_amount,
             credit_amount=credit_amount,
+            debit_or_credit="借" if running_balance > 0 else "貸" if running_balance < 0 else "none",
             balance=running_balance,
         )
         ledger_rows.append(row)
