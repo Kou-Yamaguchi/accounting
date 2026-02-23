@@ -922,13 +922,13 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
         # running_balance = get_initial_balance(account)
         ledger_rows.append(
             LedgerRow(
-                date=day_range.start if day_range else date.today(),
+                date=str(day_range.start) if day_range else str(date.today()),
                 description="前月繰越",
-                counter_account_name="",
-                debit_amount=initial_balance if initial_balance > 0 else Decimal("0.00"),
-                credit_amount=-initial_balance if initial_balance < 0 else Decimal("0.00"),
+                counter_account_name="前期繰越",
+                debit_amount=str(initial_balance) if initial_balance > 0 else "",
+                credit_amount=str(-initial_balance) if initial_balance < 0 else "",
                 debit_or_credit="借" if initial_balance > 0 else "貸" if initial_balance < 0 else "none",
-                balance=running_balance,
+                balance=str(running_balance),
             )
         )
 
@@ -967,14 +967,44 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
         counter_party_name = determine_counter_party_name(counter_party_accounts)
 
         row = LedgerRow(
-            date=je.date,
+            date=str(je.date),
             description=je.summary,
             counter_account_name=counter_party_name,
-            debit_amount=debit_amount,
-            credit_amount=credit_amount,
+            debit_amount=str(debit_amount),
+            credit_amount=str(credit_amount),
             debit_or_credit="借" if running_balance > 0 else "貸" if running_balance < 0 else "none",
-            balance=running_balance,
+            balance=str(running_balance),
         )
         ledger_rows.append(row)
 
     return ledger_rows
+
+
+def get_general_ledger_data(day_range: DayRange, is_all: bool = True, account: Account  = None) -> dict:
+    """
+    指定された条件に基づいて総勘定元帳データを取得します。
+
+    Args:
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+        is_all (bool): 全科目を対象とするかどうか
+        account (Account | None): 対象の勘定科目（is_allがFalseの場合に指定）
+
+    Returns:
+        dict: 総勘定元帳データの辞書
+    """
+    if is_all:
+        accounts = Account.objects.all()
+    else:
+        if account is None:
+            raise ValueError("accountパラメータが指定されていません。")
+        try:
+            account = Account.objects.get(id=account.id)
+        except Account.DoesNotExist:
+            raise ValueError(f"指定されたaccount ID {account.id} は存在しません。")
+        accounts = [account]
+
+    result = {}
+    for acc in accounts:
+        result[acc.name] = get_list_general_ledger_row(acc, day_range)
+
+    return result

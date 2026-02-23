@@ -94,7 +94,7 @@ urlpatterns = [
     path(
         "general_ledger/pdf/",
         ledger_pdf,
-        name="general_ledger_pdf",
+        name="ledger_pdf",
     ),
     path(
         "balance_sheet/",

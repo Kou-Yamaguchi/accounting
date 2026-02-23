@@ -11,21 +11,31 @@
 
 <h2>総勘定元帳</h2>
 <!-- <h3>勘定科目: {{ account_name }}</h3> -->
-<form id="ledger-form"
+<div id="ledger-controls"
   hx-target="#search-result"
   hx-swap="innerHTML"
   hx-trigger="change"
-  hx-get="{% url 'general_ledger_by_account' %}?account_name=''"
-  class="form-inline mb-3"
-  method="get"
+  hx-get="{% url 'general_ledger_by_account' %}"
+  hx-include="#year_month, #account_name"
+  class="mb-3"
 >
-  {% csrf_token %}
   <label for="year_month">年月:</label>
   <input type="month" id="year_month" name="year_month" value="{{ year_month }}">
   <label for="account_name">勘定科目:</label>
   <input type="text" id="account_name" name="account_name" value="{{ account_name }}">
-  <!-- <button type="submit" class="btn btn-primary btn-sm">表示</button> -->
-</form>
+  <button type="button" id="pdf-btn" class="btn btn-secondary btn-sm">PDF出力</button>
+</div>
+
+<script>
+  document.getElementById('pdf-btn').addEventListener('click', function () {
+    var yearMonth = document.getElementById('year_month').value;
+    if (!yearMonth) {
+      alert('年月を入力してください。');
+      return;
+    }
+    window.location.href = "{% url 'ledger_pdf' %}?year_month=" + yearMonth;
+  });
+</script>
 
 <table id="search-result" class="table table-striped">
   <thead>

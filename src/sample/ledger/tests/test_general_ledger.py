@@ -34,7 +34,7 @@ class GeneralLedgerViewTest(TestCase):
         self.accounts_payable = self.accounts["買掛金"]
         self.supplies = self.accounts["消耗品"]
         # テスト対象のビューにアクセスするためのURLを準備
-        self.url_template = "/ledger/general_ledger/content/?account_name={account_name}"
+        self.url_template = "/ledger/general_ledger/content/?account_name={account_name}&year_month={year_month}"
 
     # ----------------------------------------------------
     # 1. 1 vs 1 (単純仕訳) のテスト
@@ -52,21 +52,26 @@ class GeneralLedgerViewTest(TestCase):
             [(self.sales, Decimal("100.00"))],  # 売上が貸方
         )
 
-        request = self.factory.get(self.url_template.format(account_name="現金"))
-        response = GeneralLedgerView.as_view()(request, account_name="現金")
+        request = self.factory.get(
+            self.url_template.format(account_name="現金", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="現金", year_month="2025-10"
+        )
 
         self.assertEqual(response.status_code, 200)
 
         ledger_entries = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 1)
+        # NOTE: 単一仕訳 + 期首残高の行があるため、合計2行になることを想定
+        self.assertEqual(len(ledger_entries), 2)
 
-        entry: LedgerRow = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[1]
         # チェック項目
         self.assertEqual(
             entry.counter_account_name, "売上"
         )  # 相手勘定が単一科目名であること
-        self.assertEqual(entry.debit_amount, Decimal("100.00"))
-        self.assertEqual(entry.credit_amount, Decimal("0"))
+        self.assertEqual(entry.debit_amount, "100.00")
+        self.assertEqual(entry.credit_amount, "0.00")
 
     def test_single_vs_single_entry_credit_side(self):
         """
@@ -80,19 +85,24 @@ class GeneralLedgerViewTest(TestCase):
             [(self.accounts_payable, Decimal("50.00"))],  # 買掛金が貸方
         )
 
-        request = self.factory.get(self.url_template.format(account_name="買掛金"))
-        response = GeneralLedgerView.as_view()(request, account_name="買掛金")
+        request = self.factory.get(
+            self.url_template.format(account_name="買掛金", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="買掛金", year_month="2025-10"
+        )
 
         ledger_entries = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 1)
+        # NOTE: 単一仕訳 + 前期繰越
+        self.assertEqual(len(ledger_entries), 2)
 
-        entry: LedgerRow = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[1]
         # チェック項目
         self.assertEqual(
             entry.counter_account_name, "仕入"
         )  # 相手勘定が単一科目名であること
-        self.assertEqual(entry.debit_amount, Decimal("0"))
-        self.assertEqual(entry.credit_amount, Decimal("50.00"))
+        self.assertEqual(entry.debit_amount, "0.00")
+        self.assertEqual(entry.credit_amount, "50.00")
 
     # ----------------------------------------------------
     # 2. 1 vs 多 (複合仕訳) のテスト
@@ -113,19 +123,24 @@ class GeneralLedgerViewTest(TestCase):
             ],  # 現金が借方
         )
 
-        request = self.factory.get(self.url_template.format(account_name="売上"))
-        response = GeneralLedgerView.as_view()(request, account_name="売上")
+        request = self.factory.get(
+            self.url_template.format(account_name="売上", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="売上", year_month="2025-10"
+        )
 
         ledger_entries = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 1)
+        # NOTE: 単一仕訳 + 前期繰越
+        self.assertEqual(len(ledger_entries), 2)
 
-        entry: LedgerRow = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[1]
         # チェック項目
         self.assertEqual(
             entry.counter_account_name, "現金"
         )  # 相手勘定が単一科目名であること
-        self.assertEqual(entry.debit_amount, Decimal("0.00"))
-        self.assertEqual(entry.credit_amount, Decimal("100.00"))
+        self.assertEqual(entry.debit_amount, "0.00")
+        self.assertEqual(entry.credit_amount, "100.00")
 
     def test_multiple_entry_credit_side(self):
         """
@@ -142,17 +157,22 @@ class GeneralLedgerViewTest(TestCase):
             [(self.sales, Decimal("100.00"))],  # 売上が貸方
         )
 
-        request = self.factory.get(self.url_template.format(account_name="現金"))
-        response = GeneralLedgerView.as_view()(request, account_name="現金")
+        request = self.factory.get(
+            self.url_template.format(account_name="現金", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="現金", year_month="2025-10"
+        )
 
         ledger_entries = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 1)
+        # NOTE: 単一仕訳 + 前期繰越
+        self.assertEqual(len(ledger_entries), 2)
 
-        entry: LedgerRow = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[1]
         # チェック項目
         self.assertEqual(entry.counter_account_name, "売上")  # 相手勘定が売上であること
-        self.assertEqual(entry.debit_amount, Decimal("80.00"))
-        self.assertEqual(entry.credit_amount, Decimal("0.00"))
+        self.assertEqual(entry.debit_amount, "80.00")
+        self.assertEqual(entry.credit_amount, "0.00")
 
     def test_single_vs_multiple_entry_debit_side(self):
         """
@@ -169,17 +189,22 @@ class GeneralLedgerViewTest(TestCase):
             ],  # 相手が2科目
         )
 
-        request = self.factory.get(self.url_template.format(account_name="現金"))
-        response = GeneralLedgerView.as_view()(request, account_name="現金")
+        request = self.factory.get(
+            self.url_template.format(account_name="現金", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="現金", year_month="2025-10"
+        )
 
         ledger_entries = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 1)
+        # NOTE: 単一仕訳 + 前期繰越
+        self.assertEqual(len(ledger_entries), 2)
 
-        entry: LedgerRow = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[1]
         # チェック項目
         self.assertEqual(entry.counter_account_name, "諸口")  # 相手勘定が諸口であること
-        self.assertEqual(entry.debit_amount, Decimal("150.00"))
-        self.assertEqual(entry.credit_amount, Decimal("0"))
+        self.assertEqual(entry.debit_amount, "150.00")
+        self.assertEqual(entry.credit_amount, "0.00")
 
     def test_single_vs_multiple_entry_credit_side(self):
         """
@@ -196,17 +221,22 @@ class GeneralLedgerViewTest(TestCase):
             [(self.sales, Decimal("100.00"))],  # 売上が貸方
         )
 
-        request = self.factory.get(self.url_template.format(account_name="売上"))
-        response = GeneralLedgerView.as_view()(request, account_name="売上")
+        request = self.factory.get(
+            self.url_template.format(account_name="売上", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="売上", year_month="2025-10"
+        )
 
         ledger_entries: list[LedgerRow] = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 1)
+        # NOTE: 単一仕訳 + 前期繰越
+        self.assertEqual(len(ledger_entries), 2)
 
-        entry: LedgerRow = ledger_entries[0]
+        entry: LedgerRow = ledger_entries[1]
         # チェック項目
         self.assertEqual(entry.counter_account_name, "諸口")  # 相手勘定が諸口であること
-        self.assertEqual(entry.debit_amount, Decimal("0"))
-        self.assertEqual(entry.credit_amount, Decimal("100.00"))
+        self.assertEqual(entry.debit_amount, "0.00")
+        self.assertEqual(entry.credit_amount, "100.00")
 
     # ----------------------------------------------------
     # 3. 残高計算の検証
@@ -242,20 +272,25 @@ class GeneralLedgerViewTest(TestCase):
             [(self.accounts_payable, Decimal("50"))],
         )
 
-        request = self.factory.get(self.url_template.format(account_name="現金"))
-        response = GeneralLedgerView.as_view()(request, account_name="現金")
+        request = self.factory.get(
+            self.url_template.format(account_name="現金", year_month="2025-10")
+        )
+        response = GeneralLedgerView.as_view()(
+            request, account_name="現金", year_month="2025-10"
+        )
 
         ledger_entries: list[LedgerRow] = response.context_data["ledger_entries"]
-        self.assertEqual(len(ledger_entries), 3)
+        # NOTE: 仕訳3件 + 前期繰越
+        self.assertEqual(len(ledger_entries), 4)
 
         # エントリは日付順にソートされていることを前提とする
         # 現金は資産 (Asset) のため、借方が増加、貸方が減少
 
         # 1. 借方 100
-        self.assertEqual(ledger_entries[0].balance, Decimal("100"))
+        self.assertEqual(ledger_entries[1].balance, "100.00")
 
         # 2. 貸方 40 (100 - 40 = 60)
-        self.assertEqual(ledger_entries[1].balance, Decimal("60"))
+        self.assertEqual(ledger_entries[2].balance, "60.00")
 
         # 3. 借方 50 (60 + 50 = 110)
-        self.assertEqual(ledger_entries[2].balance, Decimal("110"))
+        self.assertEqual(ledger_entries[3].balance, "110.00")
