@@ -2,12 +2,14 @@
 決算整理仕訳入力画面のビュー
 """
 
+from dataclasses import dataclass
 from decimal import Decimal
 from django.views.generic import CreateView
 from django.urls import reverse_lazy
 from django.db import transaction
+from django.shortcuts import redirect
 
-from ledger.models import JournalEntry, FiscalPeriod
+from ledger.models import JournalEntry, FiscalPeriod, Account
 from ledger.forms import (
     AdjustmentJournalEntryForm,
     DebitFormSet,
@@ -15,6 +17,17 @@ from ledger.forms import (
 )
 from ledger.services_temp import AdjustmentCalculator
 from enums.error_messages import ErrorMessages
+
+
+@dataclass
+class EntryBlock:
+    """仕訳入力の1ブロック（1仕訳分）"""
+
+    key: str
+    title: str
+    form: AdjustmentJournalEntryForm
+    debit_formset: DebitFormSet
+    credit_formset: CreditFormSet
 
 
 class AdjustmentEntryCreateView(CreateView):
@@ -28,83 +41,200 @@ class AdjustmentEntryCreateView(CreateView):
     debit_formset_class = DebitFormSet
     credit_formset_class = CreditFormSet
 
-    def get_formsets(self, post_data=None, instance=None):
-        """フォームセットを取得"""
-        if post_data:
-            debit_fs = self.debit_formset_class(post_data, instance=instance)
-            credit_fs = self.credit_formset_class(post_data, instance=instance)
-        else:
-            debit_fs = self.debit_formset_class(instance=instance)
-            credit_fs = self.credit_formset_class(instance=instance)
-        return debit_fs, credit_fs
+    @staticmethod
+    def _get_account_or_none(name):
+        """勘定科目名で検索し、存在しない場合はNoneを返す"""
+        try:
+            return Account.objects.get(name=name)
+        except Account.DoesNotExist:
+            return None
 
-    def get_context_data(self, **kwargs):
-        """コンテキストデータにフォームセットと参考情報を追加"""
+    def _create_formset(self, formset_class, post_data, prefix, initial=None):
+        """フォームセットを生成するヘルパー"""
+        if post_data is not None:
+            print(f"DEBUG: Creating formset with POST data for prefix={prefix}")
+            return formset_class(post_data, prefix=prefix)
+        print(f"DEBUG: Creating formset with prefix={prefix} and initial={initial}")
+        return formset_class(prefix=prefix, initial=initial or [])
+
+    def _build_entry_blocks(self, fiscal_period, adjustment_info, post_data=None):
+        """計算結果をもとにEntryBlockのリストを生成する"""
+        blocks = []
+        depreciation = adjustment_info.get("depreciation", {})
+        allowance = adjustment_info.get("allowance", {})
+
+        # 減価償却費ブロック（未計上の資産がある場合のみ）
+        if depreciation.get("has_unrecorded"):
+            total = depreciation["total_depreciation"]
+            prefix = "depreciation"
+
+            if post_data is None:
+                debit_account = self._get_account_or_none("減価償却費")
+                credit_account = self._get_account_or_none("減価償却累計額")
+                print(f"DEBUG: debit_account={debit_account}, credit_account={credit_account}")
+                debit_initial = [{"account": debit_account, "amount": total}]
+                credit_initial = [{"account": credit_account, "amount": total}]
+                form_initial = {"summary": "減価償却費の計上"}
+            else:
+                debit_initial = credit_initial = None
+                form_initial = None
+
+            form = AdjustmentJournalEntryForm(
+                post_data, prefix=prefix, initial=form_initial
+            )
+            debit_fs = self._create_formset(
+                self.debit_formset_class,
+                post_data,
+                prefix=f"{prefix}-debit",
+                initial=debit_initial,
+            )
+            credit_fs = self._create_formset(
+                self.credit_formset_class,
+                post_data,
+                prefix=f"{prefix}-credit",
+                initial=credit_initial,
+            )
+            blocks.append(
+                EntryBlock(
+                    key=prefix,
+                    title="減価償却費",
+                    form=form,
+                    debit_formset=debit_fs,
+                    credit_formset=credit_fs,
+                )
+            )
+
+        # 貸倒引当金ブロック（計上額がある場合のみ）
+        entry_amount = allowance.get("entry_amount", Decimal("0"))
+        if entry_amount > 0:
+            is_reversal = allowance.get("is_reversal", False)
+            prefix = "allowance"
+
+            if post_data is None:
+                if is_reversal:
+                    debit_account = self._get_account_or_none("貸倒引当金")
+                    credit_account = self._get_account_or_none("貸倒引当金戻入")
+                    form_initial = {"summary": "貸倒引当金の戻入"}
+                else:
+                    debit_account = self._get_account_or_none("貸倒引当金繰入")
+                    credit_account = self._get_account_or_none("貸倒引当金")
+                    form_initial = {"summary": "貸倒引当金繰入額の計上"}
+                debit_initial = [{"account": debit_account, "amount": entry_amount}]
+                credit_initial = [{"account": credit_account, "amount": entry_amount}]
+            else:
+                debit_initial = credit_initial = None
+                form_initial = None
+
+            form = AdjustmentJournalEntryForm(
+                post_data, prefix=prefix, initial=form_initial
+            )
+            debit_fs = self._create_formset(
+                self.debit_formset_class,
+                post_data,
+                prefix=f"{prefix}-debit",
+                initial=debit_initial,
+            )
+            credit_fs = self._create_formset(
+                self.credit_formset_class,
+                post_data,
+                prefix=f"{prefix}-credit",
+                initial=credit_initial,
+            )
+            blocks.append(
+                EntryBlock(
+                    key=prefix,
+                    title="貸倒引当金",
+                    form=form,
+                    debit_formset=debit_fs,
+                    credit_formset=credit_fs,
+                )
+            )
+
+        return blocks
+
+    def get_context_data(
+        self, entry_blocks=None, adjustment_info=None, fiscal_period=None, **kwargs
+    ):
+        """コンテキストデータにEntryBlockリストと参考情報を追加"""
         data = super().get_context_data(**kwargs)
-        instance = getattr(self, "object", None) or JournalEntry()
-        post = self.request.POST if self.request.method == "POST" else None
-        debit_fs, credit_fs = self.get_formsets(post, instance)
-        data["debit_formset"] = debit_fs
-        data["credit_formset"] = credit_fs
 
-        # 会計期間が選択されている場合、参考情報を計算
-        fiscal_period_id = None
-        if post:
-            fiscal_period_id = post.get("fiscal_period")
-        elif self.request.method == "GET":
+        # GETパラメータからfiscal_periodを解決
+        if fiscal_period is None and self.request.method == "GET":
             fiscal_period_id = self.request.GET.get("fiscal_period")
+            if fiscal_period_id:
+                try:
+                    fiscal_period = FiscalPeriod.objects.get(id=fiscal_period_id)
+                except FiscalPeriod.DoesNotExist:
+                    pass
 
-        if fiscal_period_id:
-            try:
-                fiscal_period = FiscalPeriod.objects.get(id=fiscal_period_id)
-                # 参考情報を計算
+        data["fiscal_periods"] = FiscalPeriod.objects.filter(is_closed=False)
+
+        if fiscal_period:
+            data["fiscal_period"] = fiscal_period
+
+            if adjustment_info is None:
                 adjustment_info = AdjustmentCalculator.get_all_adjustment_info(
                     fiscal_period
                 )
-                data.update(adjustment_info)
-            except FiscalPeriod.DoesNotExist:
-                pass
+            data.update(adjustment_info)
 
+            if entry_blocks is None:
+                entry_blocks = self._build_entry_blocks(fiscal_period, adjustment_info)
+
+        data["entry_blocks"] = entry_blocks or []
         return data
 
-    def form_valid(self, form):
-        """フォームのバリデーションと保存処理"""
-        context = self.get_context_data()
-        instance = form.save(commit=False)
-        debit_formset = context.get("debit_formset")
-        credit_formset = context.get("credit_formset")
+    def post(self, request, *args, **kwargs):
+        """POST処理：複数ブロックを一括バリデーション・保存"""
+        fiscal_period_id = request.POST.get("fiscal_period")
+        try:
+            fiscal_period = FiscalPeriod.objects.get(id=fiscal_period_id)
+        except (FiscalPeriod.DoesNotExist, TypeError, ValueError):
+            return redirect(self.success_url)
 
-        # フォームセットのバリデーション
-        # NOTE: 早期リターンすると片方のエラーメッセージしか表示されないため、一旦両方チェックする
-        if not debit_formset.is_valid():
-            print(debit_formset.non_form_errors())
+        adjustment_info = AdjustmentCalculator.get_all_adjustment_info(fiscal_period)
+        entry_blocks = self._build_entry_blocks(
+            fiscal_period, adjustment_info, post_data=request.POST
+        )
 
-        if not credit_formset.is_valid():
-            print(credit_formset.non_form_errors())
+        all_valid = True
+        for block in entry_blocks:
+            form_valid = block.form.is_valid()
+            debit_valid = block.debit_formset.is_valid()
+            credit_valid = block.credit_formset.is_valid()
 
-        if not (debit_formset.is_valid() and credit_formset.is_valid()):
-            return self.form_invalid(form)
+            # 借方・貸方合計チェック（両フォームセットが有効な場合のみ）
+            if debit_valid and credit_valid:
+                total_debit = getattr(
+                    block.debit_formset, "total_amount", Decimal("0.00")
+                )
+                total_credit = getattr(
+                    block.credit_formset, "total_amount", Decimal("0.00")
+                )
+                if total_debit != total_credit:
+                    block.form.add_error(None, ErrorMessages.MESSAGE_0001.value)
+                    form_valid = False
 
-        # 借方・貸方合計チェック
-        total_debit = getattr(debit_formset, "total_amount", Decimal("0.00"))
-        total_credit = getattr(credit_formset, "total_amount", Decimal("0.00"))
-        if total_debit != total_credit:
-            form.add_error(None, ErrorMessages.MESSAGE_0001.value)
-            return self.form_invalid(form)
+            if not (form_valid and debit_valid and credit_valid):
+                all_valid = False
 
-        # 会計期間から期末日を取得して設定
-        fiscal_period = form.cleaned_data["fiscal_period"]
-        instance.date = fiscal_period.end_date
-        instance.fiscal_period = fiscal_period
-        instance.entry_type = "adjustment"  # 決算整理仕訳として設定
+        if all_valid:
+            with transaction.atomic():
+                for block in entry_blocks:
+                    instance = block.form.save(commit=False)
+                    instance.date = fiscal_period.end_date
+                    instance.fiscal_period = fiscal_period
+                    instance.entry_type = "adjustment"
+                    instance.save()
+                    block.debit_formset.instance = instance
+                    block.credit_formset.instance = instance
+                    block.debit_formset.save()
+                    block.credit_formset.save()
+            return redirect(self.success_url)
 
-        # トランザクション内で保存
-        with transaction.atomic():
-            self.object = instance
-            self.object.save()
-            debit_formset.instance = self.object
-            credit_formset.instance = self.object
-            debit_formset.save()
-            credit_formset.save()
-
-        return super().form_valid(form)
+        context = self.get_context_data(
+            entry_blocks=entry_blocks,
+            adjustment_info=adjustment_info,
+            fiscal_period=fiscal_period,
+        )
+        return self.render_to_response(context)

@@ -1,13 +1,27 @@
-document.addEventListener('DOMContentLoaded', function() {
-  let debitFormCount = parseInt(document.querySelector('#id_debits-TOTAL_FORMS').value);
-  let creditFormCount = parseInt(document.querySelector('#id_credits-TOTAL_FORMS').value);
-  
-  const tbody = document.getElementById('journal-entry-tbody');
-  const debitTemplate = document.getElementById('debit-template').innerHTML;
-  const creditTemplate = document.getElementById('credit-template').innerHTML;
+/**
+ * 決算整理仕訳 仕訳明細テーブル管理
+ * 複数の仕訳ブロック（減価償却費・貸倒引当金など）に対応
+ */
 
+function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
+  const debitTotalSelector = `#id_${debitPrefix}-TOTAL_FORMS`;
+  const creditTotalSelector = `#id_${creditPrefix}-TOTAL_FORMS`;
+
+  let debitFormCount = parseInt(document.querySelector(debitTotalSelector).value);
+  let creditFormCount = parseInt(document.querySelector(creditTotalSelector).value);
+
+  const tbody = document.getElementById(`journal-entry-tbody-${blockKey}`);
+  const debitTemplate = document.getElementById(`debit-template-${blockKey}`).innerHTML;
+  const creditTemplate = document.getElementById(`credit-template-${blockKey}`).innerHTML;
+
+  const debitRemoveClass = `remove-debit-button-${blockKey}`;
+  const creditRemoveClass = `remove-credit-button-${blockKey}`;
+
+  // 新規行のセルを生成
   function createCells(index, isDebit) {
-    const newFormHtml = isDebit ? debitTemplate.replace(/__prefix__/g, index) : creditTemplate.replace(/__prefix__/g, index);
+    const prefix = isDebit ? debitPrefix : creditPrefix;
+    const template = isDebit ? debitTemplate : creditTemplate;
+    const newFormHtml = template.replace(/__prefix__/g, index);
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = newFormHtml;
 
@@ -24,275 +38,162 @@ document.addEventListener('DOMContentLoaded', function() {
     if (idField) accountCell.appendChild(idField);
     if (jeField) accountCell.appendChild(jeField);
 
-    if (isDebit) {      
-      if (accountField) {
-        accountCell.appendChild(accountField);
-        // エラー表示用のdivを追加
-        const accountErrorDiv = document.createElement('div');
-        accountErrorDiv.className = 'field-error';
-        accountErrorDiv.id = `debit-${index}-account-error`;
-        accountCell.appendChild(accountErrorDiv);
-      }
-      if (amountField) {
-        amountCell.appendChild(amountField);
-        // エラー表示用のdivを追加
-        const amountErrorDiv = document.createElement('div');
-        amountErrorDiv.className = 'field-error';
-        amountErrorDiv.id = `debit-${index}-amount-error`;
-        amountCell.appendChild(amountErrorDiv);
-      }
-      
-      const deleteCheckbox = document.createElement('input');
-      deleteCheckbox.type = 'checkbox';
-      deleteCheckbox.name = `debits-${index}-DELETE`;
-      deleteCheckbox.style.display = 'none';
-      deleteCell.appendChild(deleteCheckbox);
-      
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn btn-sm btn-danger remove-debit-button';
-      deleteBtn.textContent = '削除';
-      deleteCell.appendChild(deleteBtn);
-    } else { 
-      if (accountField) {
-        accountCell.appendChild(accountField);
-        // エラー表示用のdivを追加
-        const accountErrorDiv = document.createElement('div');
-        accountErrorDiv.className = 'field-error';
-        accountErrorDiv.id = `credit-${index}-account-error`;
-        accountCell.appendChild(accountErrorDiv);
-      }
-      if (amountField) {
-        amountCell.appendChild(amountField);
-        // エラー表示用のdivを追加
-        const amountErrorDiv = document.createElement('div');
-        amountErrorDiv.className = 'field-error';
-        amountErrorDiv.id = `credit-${index}-amount-error`;
-        amountCell.appendChild(amountErrorDiv);
-      }
-      
-      const deleteCheckbox = document.createElement('input');
-      deleteCheckbox.type = 'checkbox';
-      deleteCheckbox.name = `credits-${index}-DELETE`;
-      deleteCheckbox.style.display = 'none';
-      deleteCell.appendChild(deleteCheckbox);
-      
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn btn-sm btn-danger remove-credit-button';
-      deleteBtn.textContent = '削除';
-      deleteCell.appendChild(deleteBtn);
+    if (accountField) {
+      accountCell.appendChild(accountField);
+      const accountErrorDiv = document.createElement('div');
+      accountErrorDiv.className = 'field-error';
+      accountCell.appendChild(accountErrorDiv);
+    }
+    if (amountField) {
+      amountCell.appendChild(amountField);
+      const amountErrorDiv = document.createElement('div');
+      amountErrorDiv.className = 'field-error';
+      amountCell.appendChild(amountErrorDiv);
     }
 
-    return {accountCell, amountCell, deleteCell};
+    const deleteCheckbox = document.createElement('input');
+    deleteCheckbox.type = 'checkbox';
+    deleteCheckbox.name = `${prefix}-${index}-DELETE`;
+    deleteCheckbox.style.display = 'none';
+    deleteCell.appendChild(deleteCheckbox);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = `btn btn-sm btn-danger ${isDebit ? debitRemoveClass : creditRemoveClass}`;
+    deleteBtn.textContent = '削除';
+    deleteCell.appendChild(deleteBtn);
+
+    return { accountCell, amountCell, deleteCell };
   }
 
+  // セルを既存行または新規行に追加
   function attachCells(accountCell, amountCell, deleteCell, isDebit) {
     function attachContents(targetCell, sourceCell) {
       while (sourceCell.firstChild) {
         targetCell.appendChild(sourceCell.firstChild);
       }
     }
+
+    const debitSelector = `[name*="${debitPrefix}"][name*="-account"]`;
+    const creditSelector = `[name*="${creditPrefix}"][name*="-account"]`;
+
     const rows = tbody.querySelectorAll('tr');
     let inserted = false;
-    
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const accountField = row.querySelector(isDebit ? 'td:first-child [name*="debits"][name*="-account"]' : 'td:nth-child(4) [name*="credits"][name*="-account"]');
-      
-      if (!accountField) {
-        // この行には該当する方がないので、セルを追加
-        const accountCellIndex = isDebit ? 0 : 3;
-        const amountCellIndex = isDebit ? 1 : 4;
-        const deleteCellIndex = isDebit ? 2 : 5;
-        
-        attachContents(row.children[accountCellIndex], accountCell);
-        attachContents(row.children[amountCellIndex], amountCell);
-        attachContents(row.children[deleteCellIndex], deleteCell);
+      const occupied = isDebit
+        ? row.querySelector(`td:first-child ${debitSelector}`)
+        : row.querySelector(`td:nth-child(4) ${creditSelector}`);
+
+      if (!occupied) {
+        attachContents(row.children[isDebit ? 0 : 3], accountCell);
+        attachContents(row.children[isDebit ? 1 : 4], amountCell);
+        attachContents(row.children[isDebit ? 2 : 5], deleteCell);
         inserted = true;
         break;
       }
     }
-    
-    // 空きがなければ新しい行を追加
+
     if (!inserted) {
       const newRow = createRow();
-      const accountCellIndex = isDebit ? 0 : 3;
-      const amountCellIndex = isDebit ? 1 : 4;
-      const deleteCellIndex = isDebit ? 2 : 5;
-      
-      attachContents(newRow.children[accountCellIndex], accountCell);
-      attachContents(newRow.children[amountCellIndex], amountCell);
-      attachContents(newRow.children[deleteCellIndex], deleteCell);
+      attachContents(newRow.children[isDebit ? 0 : 3], accountCell);
+      attachContents(newRow.children[isDebit ? 1 : 4], amountCell);
+      attachContents(newRow.children[isDebit ? 2 : 5], deleteCell);
       tbody.appendChild(newRow);
     }
   }
-  
-  // 既存の借方フィールドを取得（Djangoが既にレンダリング済み）
-  function getExistingDebitCells(index) {
+
+  // Django が既にレンダリングした既存フィールドからセルを生成
+  function getExistingCells(index, isDebit) {
+    const prefix = isDebit ? debitPrefix : creditPrefix;
+    const removeCls = isDebit ? debitRemoveClass : creditRemoveClass;
+
     const accountCell = document.createElement('td');
     const amountCell = document.createElement('td');
     const deleteCell = document.createElement('td');
     deleteCell.className = 'text-center';
-    console.log(`Getting existing debit cells for index ${index}`);
-    // Djangoが生成した既存のフィールドを取得
-    const accountField = document.querySelector(`[name="debits-${index}-account"]`);
-    const amountField = document.querySelector(`[name="debits-${index}-amount"]`);
-    const idField = document.querySelector(`[name="debits-${index}-id"]`);
-    const jeField = document.querySelector(`[name="debits-${index}-journal_entry"]`);
-    const deleteField = document.querySelector(`[name="debits-${index}-DELETE"]`);
-    
-    // 既存フィールドをセルに追加（値は既に入っている）
-    console.log(`Getting existing debit cells for index ${accountField}`);
+
+    const accountField = document.querySelector(`[name="${prefix}-${index}-account"]`);
+    const amountField = document.querySelector(`[name="${prefix}-${index}-amount"]`);
+    const idField = document.querySelector(`[name="${prefix}-${index}-id"]`);
+    const jeField = document.querySelector(`[name="${prefix}-${index}-journal_entry"]`);
+    const deleteField = document.querySelector(`[name="${prefix}-${index}-DELETE"]`);
+
     if (idField) accountCell.appendChild(idField);
     if (jeField) accountCell.appendChild(jeField);
+
     if (accountField) {
-      // エラーリストを先に取得してから移動
-      const accountErrorList = document.querySelector(`#id_debits-${index}-account + .errorlist`);
+      const errorList = document.querySelector(`#id_${prefix}-${index}-account + .errorlist`);
       accountCell.appendChild(accountField);
-      // エラー表示用のdivを追加
-      const accountErrorDiv = document.createElement('div');
-      accountErrorDiv.className = 'field-error';
-      accountErrorDiv.id = `debit-${index}-account-error`;
-      
-      // Djangoから渡されたエラーを表示
-      if (accountErrorList) {
-        accountErrorDiv.innerHTML = accountErrorList.innerHTML;
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'field-error';
+      if (errorList) {
+        errorDiv.innerHTML = errorList.innerHTML;
         accountField.classList.add('error-input');
-        accountErrorList.remove(); // 元のエラーリストを削除
+        errorList.remove();
       }
-      accountCell.appendChild(accountErrorDiv);
+      accountCell.appendChild(errorDiv);
     }
+
     if (amountField) {
-      // エラーリストを先に取得してから移動
-      const amountErrorList = document.querySelector(`#id_debits-${index}-amount + .errorlist`);
+      const errorList = document.querySelector(`#id_${prefix}-${index}-amount + .errorlist`);
       amountCell.appendChild(amountField);
-      // エラー表示用のdivを追加
-      const amountErrorDiv = document.createElement('div');
-      amountErrorDiv.className = 'field-error';
-      amountErrorDiv.id = `debit-${index}-amount-error`;
-      
-      // Djangoから渡されたエラーを表示
-      if (amountErrorList) {
-        amountErrorDiv.innerHTML = amountErrorList.innerHTML;
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'field-error';
+      if (errorList) {
+        errorDiv.innerHTML = errorList.innerHTML;
         amountField.classList.add('error-input');
-        amountErrorList.remove(); // 元のエラーリストを削除
+        errorList.remove();
       }
-      amountCell.appendChild(amountErrorDiv);
+      amountCell.appendChild(errorDiv);
     }
-    
+
     if (deleteField) {
       deleteField.style.display = 'none';
       deleteCell.appendChild(deleteField);
     }
-    
-    // 削除ボタン
+
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
-    deleteBtn.className = 'btn btn-sm btn-danger remove-debit-button';
+    deleteBtn.className = `btn btn-sm btn-danger ${removeCls}`;
     deleteBtn.textContent = '削除';
     deleteCell.appendChild(deleteBtn);
-    
+
     return { accountCell, amountCell, deleteCell };
   }
 
-  // 既存の貸方フィールドを取得
-  function getExistingCreditCells(index) {
-    const accountCell = document.createElement('td');
-    const amountCell = document.createElement('td');
-    const deleteCell = document.createElement('td');
-    deleteCell.className = 'text-center';
-    
-    const accountField = document.querySelector(`[name="credits-${index}-account"]`);
-    const amountField = document.querySelector(`[name="credits-${index}-amount"]`);
-    const idField = document.querySelector(`[name="credits-${index}-id"]`);
-    const jeField = document.querySelector(`[name="credits-${index}-journal_entry"]`);
-    const deleteField = document.querySelector(`[name="credits-${index}-DELETE"]`);
-    
-    if (idField) accountCell.appendChild(idField);
-    if (jeField) accountCell.appendChild(jeField);
-    if (accountField) {
-      // エラーリストを先に取得してから移動
-      const accountErrorList = document.querySelector(`#id_credits-${index}-account + .errorlist`);
-      accountCell.appendChild(accountField);
-      // エラー表示用のdivを追加
-      const accountErrorDiv = document.createElement('div');
-      accountErrorDiv.className = 'field-error';
-      accountErrorDiv.id = `credit-${index}-account-error`;
-      
-      // Djangoから渡されたエラーを表示
-      if (accountErrorList) {
-        accountErrorDiv.innerHTML = accountErrorList.innerHTML;
-        accountField.classList.add('error-input');
-        accountErrorList.remove(); // 元のエラーリストを削除
-      }
-      accountCell.appendChild(accountErrorDiv);
-    }
-    if (amountField) {
-      // エラーリストを先に取得してから移動
-      const amountErrorList = document.querySelector(`#id_credits-${index}-amount + .errorlist`);
-      amountCell.appendChild(amountField);
-      // エラー表示用のdivを追加
-      const amountErrorDiv = document.createElement('div');
-      amountErrorDiv.className = 'field-error';
-      amountErrorDiv.id = `credit-${index}-amount-error`;
-      
-      // Djangoから渡されたエラーを表示
-      if (amountErrorList) {
-        amountErrorDiv.innerHTML = amountErrorList.innerHTML;
-        amountField.classList.add('error-input');
-        amountErrorList.remove(); // 元のエラーリストを削除
-      }
-      amountCell.appendChild(amountErrorDiv);
-    }
-    
-    if (deleteField) {
-      deleteField.style.display = 'none';
-      deleteCell.appendChild(deleteField);
-    }
-    
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'btn btn-sm btn-danger remove-credit-button';
-    deleteBtn.textContent = '削除';
-    deleteCell.appendChild(deleteBtn);
-    
-    return { accountCell, amountCell, deleteCell };
-  }
-
-  // 初期データをテーブルに表示
-  function initializeTable(debitCount = debitFormCount, creditCount = creditFormCount) {
-    const maxRows = Math.max(debitCount, creditCount, 1); // 最低1行
+  // テーブルを初期化（既存フォームデータを行に配置）
+  function initializeTable(debitCount, creditCount) {
+    const maxRows = Math.max(debitCount, creditCount, 1);
     for (let i = 0; i < maxRows; i++) {
       const row = createRow();
 
       if (i < debitCount) {
-        const debitCells = getExistingDebitCells(i);
-        row.children[0].appendChild(debitCells.accountCell);
-        row.children[1].appendChild(debitCells.amountCell);
-        row.children[2].appendChild(debitCells.deleteCell);
+        const cells = getExistingCells(i, true);
+        row.children[0].appendChild(cells.accountCell);
+        row.children[1].appendChild(cells.amountCell);
+        row.children[2].appendChild(cells.deleteCell);
       }
 
       if (i < creditCount) {
-        const creditCells = getExistingCreditCells(i);
-        row.children[3].appendChild(creditCells.accountCell);
-        row.children[4].appendChild(creditCells.amountCell);
-        row.children[5].appendChild(creditCells.deleteCell);
+        const cells = getExistingCells(i, false);
+        row.children[3].appendChild(cells.accountCell);
+        row.children[4].appendChild(cells.amountCell);
+        row.children[5].appendChild(cells.deleteCell);
       }
 
       tbody.appendChild(row);
     }
-    // 初期フォームカウントが0の場合、1に設定
+
     if (debitCount === 0) {
-      debitCount = 1;
-      document.querySelector('#id_debits-TOTAL_FORMS').value = debitCount;
+      document.querySelector(debitTotalSelector).value = 1;
       const cells = createCells(0, true);
       attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, true);
     }
 
     if (creditCount === 0) {
-      creditCount = 1;
-      document.querySelector('#id_credits-TOTAL_FORMS').value = creditCount;
+      document.querySelector(creditTotalSelector).value = 1;
       const cells = createCells(0, false);
       attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, false);
     }
@@ -300,132 +201,99 @@ document.addEventListener('DOMContentLoaded', function() {
     attachRemoveHandlers();
     updateDeleteButtons();
   }
-  
-  // 行を作成
+
+  // 行を生成
   function createRow() {
     const row = document.createElement('tr');
     row.className = 'journal-entry-row';
-    
-    // 借方セル
-    const debitAccountCell = document.createElement('td');
-    const debitAmountCell = document.createElement('td');
-    const debitDeleteCell = document.createElement('td');
-    debitDeleteCell.className = 'text-center';
-    
-    // 貸方セル
-    const creditAccountCell = document.createElement('td');
-    const creditAmountCell = document.createElement('td');
-    const creditDeleteCell = document.createElement('td');
-    creditDeleteCell.className = 'text-center';
-    
-    row.appendChild(debitAccountCell);
-    row.appendChild(debitAmountCell);
-    row.appendChild(debitDeleteCell);
-    row.appendChild(creditAccountCell);
-    row.appendChild(creditAmountCell);
-    row.appendChild(creditDeleteCell);
-    
+    for (let i = 0; i < 6; i++) {
+      const cell = document.createElement('td');
+      if (i === 2 || i === 5) cell.className = 'text-center';
+      row.appendChild(cell);
+    }
     return row;
   }
-  
+
   // 借方行を追加
-  document.getElementById('add-debit-button').addEventListener('click', function () {
-    const formCount = parseInt(document.querySelector('#id_debits-TOTAL_FORMS').value);
-    const { accountCell, amountCell, deleteCell } = createCells(formCount, true);
-    attachCells(accountCell, amountCell, deleteCell, true);
-    
-    document.querySelector('#id_debits-TOTAL_FORMS').value = formCount + 1;
-    
+  document.getElementById(`add-debit-button-${blockKey}`).addEventListener('click', function () {
+    const count = parseInt(document.querySelector(debitTotalSelector).value);
+    const cells = createCells(count, true);
+    attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, true);
+    document.querySelector(debitTotalSelector).value = count + 1;
     attachRemoveHandlers();
     updateDeleteButtons();
   });
-  
+
   // 貸方行を追加
-  document.getElementById('add-credit-button').addEventListener('click', function () {
-    const formCount = parseInt(document.querySelector('#id_credits-TOTAL_FORMS').value);
-    const { accountCell, amountCell, deleteCell } = createCells(formCount, false);
-    attachCells(accountCell, amountCell, deleteCell, false);
-    
-    document.querySelector('#id_credits-TOTAL_FORMS').value = formCount + 1;
-    
+  document.getElementById(`add-credit-button-${blockKey}`).addEventListener('click', function () {
+    const count = parseInt(document.querySelector(creditTotalSelector).value);
+    const cells = createCells(count, false);
+    attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, false);
+    document.querySelector(creditTotalSelector).value = count + 1;
     attachRemoveHandlers();
     updateDeleteButtons();
   });
-  
+
   // 削除ボタンのイベントハンドラを設定
   function attachRemoveHandlers() {
-    document.querySelectorAll('.remove-debit-button').forEach(button => {
-      button.onclick = function() {
+    tbody.querySelectorAll(`.${debitRemoveClass}`).forEach(button => {
+      button.onclick = function () {
         const row = this.closest('tr');
-        const deleteCheckbox = row.querySelector('input[name*="debits"][name*="DELETE"]');
-        if (deleteCheckbox) {
-          deleteCheckbox.checked = true;
-        }
-        // 借方のフォームフィールドをクリア（視覚的に削除）
-        const debitFields = row.querySelectorAll('td:nth-child(1) *, td:nth-child(2) *');
-        debitFields.forEach(field => {
-          if (field.tagName !== 'INPUT' || field.type !== 'checkbox') {
-            field.remove();
-          }
+        const checkbox = row.querySelector(`input[name*="${debitPrefix}"][name*="DELETE"]`);
+        if (checkbox) checkbox.checked = true;
+        row.querySelectorAll('td:nth-child(1) *, td:nth-child(2) *').forEach(el => {
+          if (el.tagName !== 'INPUT' || el.type !== 'checkbox') el.remove();
         });
-        // 削除ボタンも削除
         this.remove();
-        
-        // 借方を上に詰める
-        compactDebitRows();
+        compactSideRows(true);
         updateDeleteButtons();
       };
     });
-    
-    document.querySelectorAll('.remove-credit-button').forEach(button => {
-      button.onclick = function() {
+
+    tbody.querySelectorAll(`.${creditRemoveClass}`).forEach(button => {
+      button.onclick = function () {
         const row = this.closest('tr');
-        const deleteCheckbox = row.querySelector('input[name*="credits"][name*="DELETE"]');
-        if (deleteCheckbox) {
-          deleteCheckbox.checked = true;
-        }
-        // 貸方のフォームフィールドをクリア（視覚的に削除）
-        const creditFields = row.querySelectorAll('td:nth-child(4) *, td:nth-child(5) *');
-        creditFields.forEach(field => {
-          if (field.tagName !== 'INPUT' || field.type !== 'checkbox') {
-            field.remove();
-          }
+        const checkbox = row.querySelector(`input[name*="${creditPrefix}"][name*="DELETE"]`);
+        if (checkbox) checkbox.checked = true;
+        row.querySelectorAll('td:nth-child(4) *, td:nth-child(5) *').forEach(el => {
+          if (el.tagName !== 'INPUT' || el.type !== 'checkbox') el.remove();
         });
-        // 削除ボタンも削除
         this.remove();
-        
-        // 貸方を上に詰める
-        compactCreditRows();
+        compactSideRows(false);
         updateDeleteButtons();
       };
     });
   }
-  
-  // 借方行を上に詰める
-  function compactDebitRows() {
+
+  // 借方または貸方の行を上に詰める
+  function compactSideRows(isDebit) {
+    const prefix = isDebit ? debitPrefix : creditPrefix;
+    const removeCls = isDebit ? debitRemoveClass : creditRemoveClass;
+    const accountColIdx = isDebit ? 1 : 4; // nth-child は 1 始まり
+    const amountColIdx = isDebit ? 2 : 5;
+
     const rows = Array.from(tbody.querySelectorAll('tr'));
-    const debits = [];
-    
-    // すべての借方フィールドを収集
+    const entries = [];
+
     rows.forEach(row => {
-      const accountField = row.querySelector('td:nth-child(1) [name*="debits"][name*="-account"]');
+      const accountField = row.querySelector(
+        `td:nth-child(${accountColIdx}) [name*="${prefix}"][name*="-account"]`
+      );
       if (accountField) {
-        const amountField = row.querySelector('td:nth-child(2) [name*="debits"][name*="-amount"]');
-        const idField = row.querySelector('td:nth-child(1) [name*="debits"][name*="-id"]');
-        const jeField = row.querySelector('td:nth-child(1) [name*="debits"][name*="-journal_entry"]');
-        const deleteField = row.querySelector('input[name*="debits"][name*="DELETE"]');
-        const deleteButton = row.querySelector('.remove-debit-button');
-        
-        debits.push({
-          accountField,
-          amountField,
-          idField,
-          jeField,
-          deleteField,
-          deleteButton
-        });
-        
-        // 既存のフィールドを削除
+        const amountField = row.querySelector(
+          `td:nth-child(${amountColIdx}) [name*="${prefix}"][name*="-amount"]`
+        );
+        const idField = row.querySelector(
+          `td:nth-child(${accountColIdx}) [name*="${prefix}"][name*="-id"]`
+        );
+        const jeField = row.querySelector(
+          `td:nth-child(${accountColIdx}) [name*="${prefix}"][name*="-journal_entry"]`
+        );
+        const deleteField = row.querySelector(`input[name*="${prefix}"][name*="DELETE"]`);
+        const deleteButton = row.querySelector(`.${removeCls}`);
+
+        entries.push({ accountField, amountField, idField, jeField, deleteField, deleteButton });
+
         if (idField) idField.remove();
         if (jeField) jeField.remove();
         if (accountField) accountField.remove();
@@ -434,155 +302,73 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deleteButton) deleteButton.remove();
       }
     });
-    
-    // 借方を詰めて再配置
-    debits.forEach((debit, index) => {
-      if (index < rows.length) {
-        const row = rows[index];
-        const accountCell = row.children[0];
-        const amountCell = row.children[1];
-        const deleteCell = row.children[2];
-        
-        if (debit.idField) accountCell.appendChild(debit.idField);
-        if (debit.jeField) accountCell.appendChild(debit.jeField);
-        if (debit.accountField) accountCell.appendChild(debit.accountField);
-        if (debit.amountField) amountCell.appendChild(debit.amountField);
-        if (debit.deleteField) deleteCell.appendChild(debit.deleteField);
-        if (debit.deleteButton) deleteCell.appendChild(debit.deleteButton);
+
+    const cellIdx = isDebit ? 0 : 3; // children は 0 始まり
+    entries.forEach((entry, i) => {
+      if (i < rows.length) {
+        const row = rows[i];
+        if (entry.idField) row.children[cellIdx].appendChild(entry.idField);
+        if (entry.jeField) row.children[cellIdx].appendChild(entry.jeField);
+        if (entry.accountField) row.children[cellIdx].appendChild(entry.accountField);
+        if (entry.amountField) row.children[cellIdx + 1].appendChild(entry.amountField);
+        if (entry.deleteField) row.children[cellIdx + 2].appendChild(entry.deleteField);
+        if (entry.deleteButton) row.children[cellIdx + 2].appendChild(entry.deleteButton);
       }
     });
-    
-    // 空行を削除または非表示
+
     cleanupEmptyRows();
   }
-  
-  // 貸方行を上に詰める
-  function compactCreditRows() {
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    const credits = [];
-    
-    // すべての貸方フィールドを収集
-    rows.forEach(row => {
-      const accountField = row.querySelector('td:nth-child(4) [name*="credits"][name*="-account"]');
-      if (accountField) {
-        const amountField = row.querySelector('td:nth-child(5) [name*="credits"][name*="-amount"]');
-        const idField = row.querySelector('td:nth-child(4) [name*="credits"][name*="-id"]');
-        const jeField = row.querySelector('td:nth-child(4) [name*="credits"][name*="-journal_entry"]');
-        const deleteField = row.querySelector('input[name*="credits"][name*="DELETE"]');
-        const deleteButton = row.querySelector('.remove-credit-button');
-        
-        credits.push({
-          accountField,
-          amountField,
-          idField,
-          jeField,
-          deleteField,
-          deleteButton
-        });
-        
-        // 既存のフィールドを削除
-        if (idField) idField.remove();
-        if (jeField) jeField.remove();
-        if (accountField) accountField.remove();
-        if (amountField) amountField.remove();
-        if (deleteField) deleteField.remove();
-        if (deleteButton) deleteButton.remove();
-      }
-    });
-    
-    // 貸方を詰めて再配置
-    credits.forEach((credit, index) => {
-      if (index < rows.length) {
-        const row = rows[index];
-        const accountCell = row.children[3];
-        const amountCell = row.children[4];
-        const deleteCell = row.children[5];
-        
-        if (credit.idField) accountCell.appendChild(credit.idField);
-        if (credit.jeField) accountCell.appendChild(credit.jeField);
-        if (credit.accountField) accountCell.appendChild(credit.accountField);
-        if (credit.amountField) amountCell.appendChild(credit.amountField);
-        if (credit.deleteField) deleteCell.appendChild(credit.deleteField);
-        if (credit.deleteButton) deleteCell.appendChild(credit.deleteButton);
-      }
-    });
-    
-    // 空行を削除または非表示
-    cleanupEmptyRows();
-  }
-  
-  // 借方・貸方両方とも空欄の行を削除または非表示
+
+  // 借方・貸方ともに空の行を非表示
   function cleanupEmptyRows() {
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    
-    rows.forEach(row => {
-      const hasDebit = row.querySelector('td:nth-child(1) [name*="debits"][name*="-account"]');
-      const hasCredit = row.querySelector('td:nth-child(4) [name*="credits"][name*="-account"]');
-      
-      if (!hasDebit && !hasCredit) {
-        row.style.display = 'none';
-      }
+    tbody.querySelectorAll('tr').forEach(row => {
+      const hasDebit = row.querySelector(`td:nth-child(1) [name*="${debitPrefix}"][name*="-account"]`);
+      const hasCredit = row.querySelector(`td:nth-child(4) [name*="${creditPrefix}"][name*="-account"]`);
+      if (!hasDebit && !hasCredit) row.style.display = 'none';
     });
   }
-  
-  // 削除ボタンの有効/無効を更新
+
+  // 削除ボタンの有効/無効を更新（最低1行は残す）
   function updateDeleteButtons() {
-    // 表示中の借方の数をカウント
-    const visibleDebitButtons = Array.from(document.querySelectorAll('.remove-debit-button')).filter(btn => {
-      return btn.closest('tr').style.display !== 'none';
-    });
-    
-    // 表示中の貸方の数をカウント
-    const visibleCreditButtons = Array.from(document.querySelectorAll('.remove-credit-button')).filter(btn => {
-      return btn.closest('tr').style.display !== 'none';
-    });
-    
-    // 借方が1つだけの場合、削除ボタンを無効化
-    if (visibleDebitButtons.length === 1) {
-      visibleDebitButtons[0].disabled = true;
-      visibleDebitButtons[0].classList.add('disabled');
-      visibleDebitButtons[0].title = '最低1行は必要です';
-      visibleDebitButtons[0].style.opacity = '0.5';
-      visibleDebitButtons[0].style.cursor = 'not-allowed';
-    } else {
-      visibleDebitButtons.forEach(btn => {
-        btn.disabled = false;
-        btn.classList.remove('disabled');
-        btn.title = '';
-        btn.style.opacity = '1';
-        btn.style.cursor = 'pointer';
+    const visibleDebit = Array.from(tbody.querySelectorAll(`.${debitRemoveClass}`))
+      .filter(btn => btn.closest('tr').style.display !== 'none');
+    const visibleCredit = Array.from(tbody.querySelectorAll(`.${creditRemoveClass}`))
+      .filter(btn => btn.closest('tr').style.display !== 'none');
+
+    function setDisabled(buttons, disabled) {
+      buttons.forEach(btn => {
+        btn.disabled = disabled;
+        btn.classList.toggle('disabled', disabled);
+        btn.title = disabled ? '最低1行は必要です' : '';
+        btn.style.opacity = disabled ? '0.5' : '1';
+        btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
       });
     }
-    
-    // 貸方が1つだけの場合、削除ボタンを無効化
-    if (visibleCreditButtons.length === 1) {
-      visibleCreditButtons[0].disabled = true;
-      visibleCreditButtons[0].classList.add('disabled');
-      visibleCreditButtons[0].title = '最低1行は必要です';
-      visibleCreditButtons[0].style.opacity = '0.5';
-      visibleCreditButtons[0].style.cursor = 'not-allowed';
-    } else {
-      visibleCreditButtons.forEach(btn => {
-        btn.disabled = false;
-        btn.classList.remove('disabled');
-        btn.title = '';
-        btn.style.opacity = '1';
-        btn.style.cursor = 'pointer';
-      });
-    }
+
+    setDisabled(visibleDebit, visibleDebit.length === 1);
+    setDisabled(visibleCredit, visibleCredit.length === 1);
   }
-  
-  // 初期化
-  initializeTable();
-  
-  // 固定資産登録チェックボックスの表示/非表示制御
+
+  initializeTable(debitFormCount, creditFormCount);
+}
+
+// 各ブロックを初期化
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.entry-block').forEach(blockEl => {
+    const blockKey = blockEl.dataset.blockKey;
+    // data-debit-prefix / data-credit-prefix が指定されている場合はそれを使用
+    const debitPrefix = blockEl.dataset.debitPrefix || `${blockKey}-debit`;
+    const creditPrefix = blockEl.dataset.creditPrefix || `${blockKey}-credit`;
+    initJournalEntryBlock(blockKey, debitPrefix, creditPrefix);
+  });
+
+  // 固定資産登録チェックボックスの表示/非表示制御（他画面との互換性維持）
   const registerCheckbox = document.getElementById('id_register_as_fixed_asset');
   const detailsDiv = document.getElementById('fixed-asset-details');
   if (registerCheckbox && detailsDiv) {
-    registerCheckbox.addEventListener('change', function() {
+    registerCheckbox.addEventListener('change', function () {
       detailsDiv.style.display = this.checked ? 'block' : 'none';
     });
-    
     if (registerCheckbox.checked) {
       detailsDiv.style.display = 'block';
     }

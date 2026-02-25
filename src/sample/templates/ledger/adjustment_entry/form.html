@@ -10,7 +10,7 @@
 
 <h2>決算整理仕訳入力</h2>
 
-<!-- 会計期間選択フォーム（別フォーム） -->
+<!-- 会計期間選択フォーム -->
 {% if not fiscal_period %}
 <div class="alert alert-info">
   <h4>会計期間を選択してください</h4>
@@ -19,7 +19,7 @@
       <div class="col-md-6">
         <select name="fiscal_period" class="form-control" onchange="this.form.submit()">
           <option value="">-- 会計期間を選択 --</option>
-          {% for period in form.fields.fiscal_period.queryset %}
+          {% for period in fiscal_periods %}
             <option value="{{ period.id }}">{{ period.name }} ({{ period.start_date }} 〜 {{ period.end_date }})</option>
           {% endfor %}
         </select>
@@ -29,10 +29,10 @@
 </div>
 {% endif %}
 
-<!-- 会計期間が選択されている場合のみ仕訳入力フォームと参考情報を表示 -->
+<!-- 会計期間が選択されている場合のみ表示 -->
 {% if fiscal_period %}
 
-<!-- 参考情報の表示 -->
+<!-- 参考情報 -->
 <div class="reference-info mt-4 mb-4">
   <div class="card">
     <div class="card-header">
@@ -40,6 +40,7 @@
       <p class="mb-0">会計期間: <strong>{{ fiscal_period.name }}</strong> ({{ fiscal_period.start_date }} 〜 {{ fiscal_period.end_date }})</p>
     </div>
     <div class="card-body">
+
       <!-- 減価償却費の参考情報 -->
       {% if depreciation %}
       <div class="depreciation-info mb-4">
@@ -128,11 +129,7 @@
           <p><strong>前期引当金残高:</strong> {{ allowance.previous_allowance|floatformat:0 }}円</p>
           <p class="fw-bold">
             <strong>
-              {% if allowance.is_reversal %}
-                貸倒引当金戻入額:
-              {% else %}
-                貸倒引当金繰入額:
-              {% endif %}
+              {% if allowance.is_reversal %}貸倒引当金戻入額:{% else %}貸倒引当金繰入額:{% endif %}
             </strong> {{ allowance.entry_amount|floatformat:0 }}円
           </p>
         </div>
@@ -141,6 +138,7 @@
         {% endif %}
       </div>
       {% endif %}
+
     </div>
   </div>
 </div>
@@ -148,11 +146,8 @@
 <!-- 仕訳入力フォーム -->
 <form method="post">
   {% csrf_token %}
-
-  <h3>決算整理仕訳</h3>
-  
-  <!-- 会計期間と日付情報 -->
   <input type="hidden" name="fiscal_period" value="{{ fiscal_period.id }}">
+
   <div class="alert alert-info">
     <p class="mb-0">
       <strong>会計期間:</strong> {{ fiscal_period.name }}<br>
@@ -160,92 +155,95 @@
     </p>
   </div>
 
-  {% bootstrap_form form %}
-  {{ form.errors }}
+  {% if entry_blocks %}
+    {% for block in entry_blocks %}
+    <div class="entry-block card mb-4" data-block-key="{{ block.key }}">
+      <div class="card-header">
+        <h4 class="mb-0">{{ block.title }}</h4>
+      </div>
+      <div class="card-body">
 
-  <h3>仕訳明細</h3>
-  <div class="table-responsive">
-    <table class="table table-bordered" id="journal-entry-table">
-      <thead>
-        <tr>
-          <th>勘定科目(借方)</th>
-          <th>金額(借方)</th>
-          <th style="width: 80px;"></th>
-          <th>勘定科目(貸方)</th>
-          <th>金額(貸方)</th>
-          <th style="width: 80px;"></th>
-        </tr>
-      </thead>
-      <tbody id="journal-entry-tbody">
-        {{ debit_formset.management_form }}
-        {{ credit_formset.management_form }}
-      </tbody>
-    </table>
-  </div>
-  
-  <!-- 非表示のテンプレート -->
-  <div style="display:none;" id="formset-templates">
-    <div id="debit-template">
-      {{ debit_formset.empty_form.as_p }}
+        {% if block.form.non_field_errors %}
+        <div class="alert alert-danger">
+          {{ block.form.non_field_errors }}
+        </div>
+        {% endif %}
+
+        <!-- 摘要フィールド -->
+        {% bootstrap_form block.form %}
+
+        <!-- 仕訳明細テーブル -->
+        <h5>仕訳明細</h5>
+        <div class="table-responsive">
+          <table class="table table-bordered" id="journal-entry-table-{{ block.key }}">
+            <thead>
+              <tr>
+                <th>勘定科目(借方)</th>
+                <th>金額(借方)</th>
+                <th style="width: 80px;"></th>
+                <th>勘定科目(貸方)</th>
+                <th>金額(貸方)</th>
+                <th style="width: 80px;"></th>
+              </tr>
+            </thead>
+            <tbody id="journal-entry-tbody-{{ block.key }}">
+              {{ block.debit_formset.management_form }}
+              {{ block.credit_formset.management_form }}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- フォームセットの非表示テンプレート（行追加用） -->
+        <div style="display:none;" id="formset-templates-{{ block.key }}">
+          <div id="debit-template-{{ block.key }}">
+            {{ block.debit_formset.empty_form.as_p }}
+          </div>
+          <div id="credit-template-{{ block.key }}">
+            {{ block.credit_formset.empty_form.as_p }}
+          </div>
+        </div>
+
+        <!-- 既存フォームデータ（非表示・JS で読み取り） -->
+        <div id="existing-forms-{{ block.key }}" style="display: none;">
+          {% for debit_form in block.debit_formset %}
+            {{ debit_form.as_p }}
+          {% endfor %}
+          {% for credit_form in block.credit_formset %}
+            {{ credit_form.as_p }}
+          {% endfor %}
+        </div>
+
+        <!-- フォームセットのエラー表示 -->
+        {% if block.debit_formset.non_form_errors %}
+        <div class="alert alert-danger">
+          {{ block.debit_formset.non_form_errors }}
+        </div>
+        {% endif %}
+        {% if block.credit_formset.non_form_errors %}
+        <div class="alert alert-danger">
+          {{ block.credit_formset.non_form_errors }}
+        </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <button type="button" class="btn btn-secondary me-2" id="add-debit-button-{{ block.key }}">借方行を追加</button>
+          <button type="button" class="btn btn-secondary" id="add-credit-button-{{ block.key }}">貸方行を追加</button>
+        </div>
+
+      </div>
     </div>
-    <div id="credit-template">
-      {{ credit_formset.empty_form.as_p }}
+    {% endfor %}
+
+    {% bootstrap_button button_type="submit" content="一括保存" %}
+    <a href="{% url 'journal_entry_list' %}" class="btn btn-secondary ms-2">キャンセル</a>
+
+  {% else %}
+    <div class="alert alert-success">
+      <strong>計上が必要な決算整理仕訳はありません。</strong>
     </div>
-  </div>
-  
-  <div id="existing-forms" style="display: none;">
-    {% for form in debit_formset %}
-    {{ form.as_p }}
-    {% endfor %}
-    {% for form in credit_formset %}
-    {{ form.as_p }}
-    {% endfor %}
-  </div>
-  <div class="mb-3">
-    <button type="button" class="btn btn-primary me-2" id="add-debit-button">借方行を追加</button>
-    <button type="button" class="btn btn-primary" id="add-credit-button">貸方行を追加</button>
-  </div>
+    <a href="{% url 'journal_entry_list' %}" class="btn btn-secondary">一覧へ戻る</a>
+  {% endif %}
 
-
-
-  <!-- <div class="journal-lines"> -->
-    <!-- <div id="debit-lines-container"> -->
-      <!-- <h4>借方行</h4> -->
-      <!-- {{ debit_formset.management_form }} -->
-      <!-- {% for debit_form in debit_formset %} -->
-      <!-- <div class="journal-line"> -->
-        <!-- {% bootstrap_form debit_form %} -->
-        <!-- <button type="button" class="remove-line-button">行を削除</button> -->
-      <!-- </div> -->
-      <!-- {% endfor %} -->
-
-      <!-- <div class="empty-form-template" style="display:none;"> -->
-        <!-- {% bootstrap_form debit_formset.empty_form %} -->
-      <!-- </div> -->
-
-      <!-- {% bootstrap_button button_type="button" content="借方を追加" id="add-debit-button" %} -->
-    <!-- </div> -->
-
-    <!-- <div id="credit-lines-container"> -->
-      <!-- <h4>貸方行</h4> -->
-      <!-- {{ credit_formset.management_form }} -->
-      <!-- {% for credit_form in credit_formset %} -->
-      <!-- <div class="journal-line"> -->
-        <!-- {% bootstrap_form credit_form %} -->
-        <!-- <button type="button" class="remove-line-button">行を削除</button> -->
-      <!-- </div> -->
-      <!-- {% endfor %} -->
-
-      <!-- <div class="empty-form-template" style="display:none;"> -->
-        <!-- {% bootstrap_form credit_formset.empty_form %} -->
-      <!-- </div> -->
-
-      <!-- {% bootstrap_button button_type="button" content="貸方を追加" id="add-credit-button" %} -->
-    <!-- </div> -->
-  <!-- </div> -->
-
-  {% bootstrap_button button_type="submit" content="保存" %}
-  <a href="{% url 'journal_entry_list' %}" class="btn btn-secondary">キャンセル</a>
 </form>
 
 {% endif %}
