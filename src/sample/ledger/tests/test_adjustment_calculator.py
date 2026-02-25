@@ -255,6 +255,215 @@ class AdjustmentCalculatorTest(TestCase):
         )  # 追加繰入 100,000 - 80,000
         self.assertFalse(result["is_reversal"])
 
+    def test_record_depreciation_creates_history_for_unrecorded_asset(self):
+        """未計上の資産に対してDepreciationHistoryが作成されること"""
+        asset = FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number="FA-001",
+            account=self.account_building,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            depreciation_method="straight_line",
+            useful_life=20,
+            residual_value=Decimal("0"),
+        )
+        je = JournalEntry.objects.create(
+            date=date(2026, 3, 31),
+            summary="減価償却費の計上",
+            company=self.company,
+            fiscal_period=self.fiscal_period,
+        )
+
+        depreciation_info = AdjustmentCalculator.calculate_depreciation(
+            self.fiscal_period
+        )
+        AdjustmentCalculator.record_depreciation(
+            depreciation_info, self.fiscal_period, je
+        )
+
+        history = DepreciationHistory.objects.filter(
+            fixed_asset=asset, fiscal_period=self.fiscal_period
+        )
+        self.assertEqual(history.count(), 1)
+        self.assertEqual(history.first().amount, Decimal("500000.00"))
+
+    def test_record_depreciation_links_journal_entry(self):
+        """作成されたDepreciationHistoryが仕訳と紐付けられること"""
+        FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number="FA-001",
+            account=self.account_building,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            depreciation_method="straight_line",
+            useful_life=20,
+            residual_value=Decimal("0"),
+        )
+        je = JournalEntry.objects.create(
+            date=date(2026, 3, 31),
+            summary="減価償却費の計上",
+            company=self.company,
+            fiscal_period=self.fiscal_period,
+        )
+
+        depreciation_info = AdjustmentCalculator.calculate_depreciation(
+            self.fiscal_period
+        )
+        AdjustmentCalculator.record_depreciation(
+            depreciation_info, self.fiscal_period, je
+        )
+
+        history = DepreciationHistory.objects.get(fiscal_period=self.fiscal_period)
+        self.assertEqual(history.depreciation_journal_entry, je)
+
+    def test_record_depreciation_skips_already_recorded_asset(self):
+        """計上済みの資産に対してDepreciationHistoryが重複作成されないこと"""
+        asset = FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number="FA-001",
+            account=self.account_building,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            depreciation_method="straight_line",
+            useful_life=20,
+            residual_value=Decimal("0"),
+        )
+        DepreciationHistory.objects.create(
+            fixed_asset=asset,
+            fiscal_period=self.fiscal_period,
+            amount=Decimal("500000"),
+        )
+        je = JournalEntry.objects.create(
+            date=date(2026, 3, 31),
+            summary="減価償却費の計上",
+            company=self.company,
+            fiscal_period=self.fiscal_period,
+        )
+
+        depreciation_info = AdjustmentCalculator.calculate_depreciation(
+            self.fiscal_period
+        )
+        AdjustmentCalculator.record_depreciation(
+            depreciation_info, self.fiscal_period, je
+        )
+
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )
+
+    def test_record_depreciation_creates_history_for_multiple_assets(self):
+        """複数の未計上資産に対して全てDepreciationHistoryが作成されること"""
+        asset1 = FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number="FA-001",
+            account=self.account_building,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            depreciation_method="straight_line",
+            useful_life=20,
+            residual_value=Decimal("0"),
+        )
+        asset2 = FixedAsset.objects.create(
+            name="ノートPC",
+            asset_number="FA-002",
+            account=self.account_equipment,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("1200000"),
+            depreciation_method="straight_line",
+            useful_life=4,
+            residual_value=Decimal("0"),
+        )
+        je = JournalEntry.objects.create(
+            date=date(2026, 3, 31),
+            summary="減価償却費の計上",
+            company=self.company,
+            fiscal_period=self.fiscal_period,
+        )
+
+        depreciation_info = AdjustmentCalculator.calculate_depreciation(
+            self.fiscal_period
+        )
+        AdjustmentCalculator.record_depreciation(
+            depreciation_info, self.fiscal_period, je
+        )
+
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fiscal_period=self.fiscal_period
+            ).count(),
+            2,
+        )
+        self.assertTrue(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset1, fiscal_period=self.fiscal_period
+            ).exists()
+        )
+        self.assertTrue(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset2, fiscal_period=self.fiscal_period
+            ).exists()
+        )
+
+    def test_record_depreciation_only_unrecorded_when_mixed(self):
+        """計上済みと未計上が混在する場合、未計上の資産のみHistoryが作成されること"""
+        asset1 = FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number="FA-001",
+            account=self.account_building,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            depreciation_method="straight_line",
+            useful_life=20,
+            residual_value=Decimal("0"),
+        )
+        asset2 = FixedAsset.objects.create(
+            name="ノートPC",
+            asset_number="FA-002",
+            account=self.account_equipment,
+            acquisition_date=date(2025, 4, 1),
+            acquisition_cost=Decimal("1200000"),
+            depreciation_method="straight_line",
+            useful_life=4,
+            residual_value=Decimal("0"),
+        )
+        # asset1 だけ計上済みにする
+        DepreciationHistory.objects.create(
+            fixed_asset=asset1,
+            fiscal_period=self.fiscal_period,
+            amount=Decimal("500000"),
+        )
+        je = JournalEntry.objects.create(
+            date=date(2026, 3, 31),
+            summary="減価償却費の計上",
+            company=self.company,
+            fiscal_period=self.fiscal_period,
+        )
+
+        depreciation_info = AdjustmentCalculator.calculate_depreciation(
+            self.fiscal_period
+        )
+        AdjustmentCalculator.record_depreciation(
+            depreciation_info, self.fiscal_period, je
+        )
+
+        # asset1 は増えていない
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset1, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )
+        # asset2 は新規作成されている
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset2, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )
+
     def test_get_all_adjustment_info(self):
         """全ての参考情報を取得するテスト"""
         # 固定資産

@@ -66,10 +66,12 @@ class AdjustmentEntryCreateView(CreateView):
         result = []
         for item in initial_list:
             account = item.get("account")
-            result.append({
-                "account": account.pk if account else "",
-                "amount": str(item.get("amount", "")),
-            })
+            result.append(
+                {
+                    "account": account.pk if account else "",
+                    "amount": str(item.get("amount", "")),
+                }
+            )
         return json.dumps(result)
 
     def _build_entry_blocks(self, fiscal_period, adjustment_info, post_data=None):
@@ -248,6 +250,12 @@ class AdjustmentEntryCreateView(CreateView):
                     block.credit_formset.instance = instance
                     block.debit_formset.save()
                     block.credit_formset.save()
+                    if block.key == "depreciation":
+                        AdjustmentCalculator.record_depreciation(
+                            adjustment_info["depreciation"],
+                            fiscal_period,
+                            instance,
+                        )
             return redirect(self.success_url)
 
         context = self.get_context_data(

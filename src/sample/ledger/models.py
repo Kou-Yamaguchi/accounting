@@ -540,10 +540,10 @@ class DepreciationHistory(models.Model):
         FiscalPeriod, on_delete=models.PROTECT, verbose_name="会計期間"
     )
     amount = models.DecimalField(max_digits=14, decimal_places=2, verbose_name="償却額")
-    depreciation_journal_entry = models.OneToOneField(
+    depreciation_journal_entry = models.ForeignKey(
         JournalEntry,
         on_delete=models.PROTECT,
-        related_name="depreciation_record",
+        related_name="depreciation_records",
         null=True,
         blank=True,
         verbose_name="減価償却仕訳",

@@ -457,3 +457,137 @@ class AdjustmentReferenceInfoTest(TestCase):
             1,
         )
         self.assertEqual(depreciation_history.amount, Decimal("500000"))
+
+
+class AdjustmentEntryDepreciationHistoryTest(TestCase):
+    """決算整理仕訳POST時のDepreciationHistory作成のテスト"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="testuser",
+            password="testpass",
+        )
+        self.client.force_login(self.user)
+
+        self.accounts = create_accounts(
+            [
+                AccountData(name="建物", type="asset"),
+                AccountData(name="減価償却累計額", type="asset_contra"),
+                AccountData(name="減価償却費", type="expense"),
+                AccountData(name="現金", type="asset"),
+            ]
+        )
+
+        self.company = Company.objects.create(name="テスト会社")
+        self.fiscal_period = FiscalPeriod.objects.create(
+            name="2024年度",
+            start_date=date(2024, 4, 1),
+            end_date=date(2025, 3, 31),
+            is_closed=False,
+        )
+
+    def _create_building_asset(self, asset_number="FA-001"):
+        building_account = Account.objects.get(name="建物")
+        je = JournalEntry.objects.create(
+            date=date(2024, 4, 1),
+            summary="建物購入",
+            company=self.company,
+            entry_type="normal",
+        )
+        Debit.objects.create(
+            journal_entry=je,
+            account=building_account,
+            amount=Decimal("10000000"),
+        )
+        return FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number=asset_number,
+            account=building_account,
+            acquisition_date=date(2024, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            useful_life=20,
+            residual_value=Decimal("0"),
+            acquisition_journal_entry=je,
+        )
+
+    def _post_depreciation(self, amount="500000"):
+        debit_account_id = Account.objects.get(name="減価償却費").id
+        credit_account_id = Account.objects.get(name="減価償却累計額").id
+        data = {
+            "fiscal_period": str(self.fiscal_period.id),
+            "depreciation-summary": "減価償却費の計上",
+            "depreciation-company": str(self.company.id),
+            "depreciation-debit-TOTAL_FORMS": "1",
+            "depreciation-debit-INITIAL_FORMS": "0",
+            "depreciation-debit-MIN_NUM_FORMS": "0",
+            "depreciation-debit-MAX_NUM_FORMS": "1000",
+            "depreciation-debit-0-account": str(debit_account_id),
+            "depreciation-debit-0-amount": amount,
+            "depreciation-credit-TOTAL_FORMS": "1",
+            "depreciation-credit-INITIAL_FORMS": "0",
+            "depreciation-credit-MIN_NUM_FORMS": "0",
+            "depreciation-credit-MAX_NUM_FORMS": "1000",
+            "depreciation-credit-0-account": str(credit_account_id),
+            "depreciation-credit-0-amount": amount,
+        }
+        return self.client.post(reverse("adjustment_entry_new"), data=data)
+
+    def test_post_creates_depreciation_history(self):
+        """POST成功時にDepreciationHistoryが作成されること"""
+        asset = self._create_building_asset()
+
+        response = self._post_depreciation()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )
+
+    def test_post_history_has_correct_amount(self):
+        """作成されたDepreciationHistoryの金額が計算値と一致すること"""
+        asset = self._create_building_asset()
+
+        self._post_depreciation(amount="500000")
+
+        history = DepreciationHistory.objects.get(
+            fixed_asset=asset, fiscal_period=self.fiscal_period
+        )
+        self.assertEqual(history.amount, Decimal("500000.00"))
+
+    def test_post_history_linked_to_journal_entry(self):
+        """作成されたDepreciationHistoryが保存された仕訳と紐付けられること"""
+        asset = self._create_building_asset()
+
+        self._post_depreciation()
+
+        journal_entry = JournalEntry.objects.get(summary="減価償却費の計上")
+        history = DepreciationHistory.objects.get(
+            fixed_asset=asset, fiscal_period=self.fiscal_period
+        )
+        self.assertEqual(history.depreciation_journal_entry, journal_entry)
+
+    def test_post_does_not_duplicate_history_when_already_recorded(self):
+        """全資産が計上済みの場合、POSTしてもDepreciationHistoryが増加しないこと"""
+        asset = self._create_building_asset()
+        DepreciationHistory.objects.create(
+            fixed_asset=asset,
+            fiscal_period=self.fiscal_period,
+            amount=Decimal("500000"),
+        )
+
+        # 計上済みのため depreciation ブロックは生成されず、空のPOSTになる
+        response = self.client.post(
+            reverse("adjustment_entry_new"),
+            data={"fiscal_period": str(self.fiscal_period.id)},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )
