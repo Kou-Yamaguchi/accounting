@@ -49,13 +49,13 @@ class AdjustmentEntryCreateView(CreateView):
         except Account.DoesNotExist:
             return None
 
-    def _create_formset(self, formset_class, post_data, prefix, initial=None):
+    def _create_formset(self, formset_class, post_data, prefix, initial=[]):
         """フォームセットを生成するヘルパー"""
         if post_data is not None:
             print(f"DEBUG: Creating formset with POST data for prefix={prefix}")
             return formset_class(post_data, prefix=prefix)
         print(f"DEBUG: Creating formset with prefix={prefix} and initial={initial}")
-        return formset_class(prefix=prefix, initial=initial or [])
+        return formset_class(prefix=prefix, initial=initial)
 
     def _build_entry_blocks(self, fiscal_period, adjustment_info, post_data=None):
         """計算結果をもとにEntryBlockのリストを生成する"""
