@@ -927,7 +927,7 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
                 counter_account_name="前期繰越",
                 debit_amount=str(initial_balance) if initial_balance > 0 else "",
                 credit_amount=str(-initial_balance) if initial_balance < 0 else "",
-                debit_or_credit="借" if initial_balance > 0 else "貸" if initial_balance < 0 else "none",
+                debit_or_credit="借" if initial_balance > 0 else "貸" if initial_balance < 0 else "-",
                 balance=str(running_balance),
             )
         )
@@ -972,7 +972,7 @@ def get_list_general_ledger_row(account: Account, day_range: DayRange = None) ->
             counter_account_name=counter_party_name,
             debit_amount=str(debit_amount),
             credit_amount=str(credit_amount),
-            debit_or_credit="借" if running_balance > 0 else "貸" if running_balance < 0 else "none",
+            debit_or_credit="借" if running_balance > 0 else "貸" if running_balance < 0 else "-",
             balance=str(running_balance),
         )
         ledger_rows.append(row)
