@@ -230,15 +230,9 @@ class FixedAssetInlineForm(forms.ModelForm):
 class AdjustmentJournalEntryForm(forms.ModelForm):
     """決算整理仕訳用フォーム"""
 
-    fiscal_period = forms.ModelChoiceField(
-        queryset=FiscalPeriod.objects.filter(is_closed=False),
-        label="会計期間",
-        required=True,
-    )
-
     class Meta:
         model = JournalEntry
-        fields = ["fiscal_period", "summary", "company"]
+        fields = ["summary", "company"]
         widgets = {
             "summary": forms.TextInput(attrs={"class": "form-control"}),
         }
