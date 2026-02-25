@@ -3,7 +3,10 @@
  * 複数の仕訳ブロック（減価償却費・貸倒引当金など）に対応
  */
 
-function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
+function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial, creditInitial) {
+  debitInitial = debitInitial || [];
+  creditInitial = creditInitial || [];
+
   const debitTotalSelector = `#id_${debitPrefix}-TOTAL_FORMS`;
   const creditTotalSelector = `#id_${creditPrefix}-TOTAL_FORMS`;
 
@@ -17,8 +20,13 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
   const debitRemoveClass = `remove-debit-button-${blockKey}`;
   const creditRemoveClass = `remove-credit-button-${blockKey}`;
 
-  // 新規行のセルを生成
-  function createCells(index, isDebit) {
+  // ソースセルの子要素をターゲットセルに移動する
+  function moveContents(target, source) {
+    while (source.firstChild) target.appendChild(source.firstChild);
+  }
+
+  // 新規行のセルを生成（initial が指定された場合は初期値を設定）
+  function createCells(index, isDebit, initial) {
     const prefix = isDebit ? debitPrefix : creditPrefix;
     const template = isDebit ? debitTemplate : creditTemplate;
     const newFormHtml = template.replace(/__prefix__/g, index);
@@ -29,6 +37,15 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
     const amountField = tempDiv.querySelector('[name*="-amount"]');
     const idField = tempDiv.querySelector('[name*="-id"]');
     const jeField = tempDiv.querySelector('[name*="-journal_entry"]');
+
+    if (initial) {
+      if (accountField && initial.account !== undefined && initial.account !== '') {
+        accountField.value = initial.account;
+      }
+      if (amountField && initial.amount !== undefined && initial.amount !== '') {
+        amountField.value = initial.amount;
+      }
+    }
 
     const accountCell = document.createElement('td');
     const amountCell = document.createElement('td');
@@ -68,12 +85,6 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
 
   // セルを既存行または新規行に追加
   function attachCells(accountCell, amountCell, deleteCell, isDebit) {
-    function attachContents(targetCell, sourceCell) {
-      while (sourceCell.firstChild) {
-        targetCell.appendChild(sourceCell.firstChild);
-      }
-    }
-
     const debitSelector = `[name*="${debitPrefix}"][name*="-account"]`;
     const creditSelector = `[name*="${creditPrefix}"][name*="-account"]`;
 
@@ -87,9 +98,9 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
         : row.querySelector(`td:nth-child(4) ${creditSelector}`);
 
       if (!occupied) {
-        attachContents(row.children[isDebit ? 0 : 3], accountCell);
-        attachContents(row.children[isDebit ? 1 : 4], amountCell);
-        attachContents(row.children[isDebit ? 2 : 5], deleteCell);
+        moveContents(row.children[isDebit ? 0 : 3], accountCell);
+        moveContents(row.children[isDebit ? 1 : 4], amountCell);
+        moveContents(row.children[isDebit ? 2 : 5], deleteCell);
         inserted = true;
         break;
       }
@@ -97,9 +108,9 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
 
     if (!inserted) {
       const newRow = createRow();
-      attachContents(newRow.children[isDebit ? 0 : 3], accountCell);
-      attachContents(newRow.children[isDebit ? 1 : 4], amountCell);
-      attachContents(newRow.children[isDebit ? 2 : 5], deleteCell);
+      moveContents(newRow.children[isDebit ? 0 : 3], accountCell);
+      moveContents(newRow.children[isDebit ? 1 : 4], amountCell);
+      moveContents(newRow.children[isDebit ? 2 : 5], deleteCell);
       tbody.appendChild(newRow);
     }
   }
@@ -171,16 +182,16 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
 
       if (i < debitCount) {
         const cells = getExistingCells(i, true);
-        row.children[0].appendChild(cells.accountCell);
-        row.children[1].appendChild(cells.amountCell);
-        row.children[2].appendChild(cells.deleteCell);
+        moveContents(row.children[0], cells.accountCell);
+        moveContents(row.children[1], cells.amountCell);
+        moveContents(row.children[2], cells.deleteCell);
       }
 
       if (i < creditCount) {
         const cells = getExistingCells(i, false);
-        row.children[3].appendChild(cells.accountCell);
-        row.children[4].appendChild(cells.amountCell);
-        row.children[5].appendChild(cells.deleteCell);
+        moveContents(row.children[3], cells.accountCell);
+        moveContents(row.children[4], cells.amountCell);
+        moveContents(row.children[5], cells.deleteCell);
       }
 
       tbody.appendChild(row);
@@ -188,13 +199,13 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix) {
 
     if (debitCount === 0) {
       document.querySelector(debitTotalSelector).value = 1;
-      const cells = createCells(0, true);
+      const cells = createCells(0, true, debitInitial[0]);
       attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, true);
     }
 
     if (creditCount === 0) {
       document.querySelector(creditTotalSelector).value = 1;
-      const cells = createCells(0, false);
+      const cells = createCells(0, false, creditInitial[0]);
       attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, false);
     }
 
@@ -359,7 +370,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // data-debit-prefix / data-credit-prefix が指定されている場合はそれを使用
     const debitPrefix = blockEl.dataset.debitPrefix || `${blockKey}-debit`;
     const creditPrefix = blockEl.dataset.creditPrefix || `${blockKey}-credit`;
-    initJournalEntryBlock(blockKey, debitPrefix, creditPrefix);
+
+    let debitInitial = [];
+    let creditInitial = [];
+    try { debitInitial = JSON.parse(blockEl.dataset.initialDebit || '[]'); } catch (e) {}
+    try { creditInitial = JSON.parse(blockEl.dataset.initialCredit || '[]'); } catch (e) {}
+
+    initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial, creditInitial);
   });
 
   // 固定資産登録チェックボックスの表示/非表示制御（他画面との互換性維持）

@@ -2,7 +2,8 @@
 決算整理仕訳入力画面のビュー
 """
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 from decimal import Decimal
 from django.views.generic import CreateView
 from django.urls import reverse_lazy
@@ -28,6 +29,8 @@ class EntryBlock:
     form: AdjustmentJournalEntryForm
     debit_formset: DebitFormSet
     credit_formset: CreditFormSet
+    debit_initial_json: str = "[]"
+    credit_initial_json: str = "[]"
 
 
 class AdjustmentEntryCreateView(CreateView):
@@ -52,10 +55,22 @@ class AdjustmentEntryCreateView(CreateView):
     def _create_formset(self, formset_class, post_data, prefix, initial=[]):
         """フォームセットを生成するヘルパー"""
         if post_data is not None:
-            print(f"DEBUG: Creating formset with POST data for prefix={prefix}")
             return formset_class(post_data, prefix=prefix)
-        print(f"DEBUG: Creating formset with prefix={prefix} and initial={initial}")
         return formset_class(prefix=prefix, initial=initial)
+
+    @staticmethod
+    def _initial_to_json(initial_list):
+        """initial リストを data-* 属性用の JSON 文字列に変換する"""
+        if not initial_list:
+            return "[]"
+        result = []
+        for item in initial_list:
+            account = item.get("account")
+            result.append({
+                "account": account.pk if account else "",
+                "amount": str(item.get("amount", "")),
+            })
+        return json.dumps(result)
 
     def _build_entry_blocks(self, fiscal_period, adjustment_info, post_data=None):
         """計算結果をもとにEntryBlockのリストを生成する"""
@@ -71,12 +86,13 @@ class AdjustmentEntryCreateView(CreateView):
             if post_data is None:
                 debit_account = self._get_account_or_none("減価償却費")
                 credit_account = self._get_account_or_none("減価償却累計額")
-                print(f"DEBUG: debit_account={debit_account}, credit_account={credit_account}")
                 debit_initial = [{"account": debit_account, "amount": total}]
                 credit_initial = [{"account": credit_account, "amount": total}]
+                debit_initial_json = self._initial_to_json(debit_initial)
+                credit_initial_json = self._initial_to_json(credit_initial)
                 form_initial = {"summary": "減価償却費の計上"}
             else:
-                debit_initial = credit_initial = None
+                debit_initial_json = credit_initial_json = "[]"
                 form_initial = None
 
             form = AdjustmentJournalEntryForm(
@@ -86,13 +102,11 @@ class AdjustmentEntryCreateView(CreateView):
                 self.debit_formset_class,
                 post_data,
                 prefix=f"{prefix}-debit",
-                initial=debit_initial,
             )
             credit_fs = self._create_formset(
                 self.credit_formset_class,
                 post_data,
                 prefix=f"{prefix}-credit",
-                initial=credit_initial,
             )
             blocks.append(
                 EntryBlock(
@@ -101,6 +115,8 @@ class AdjustmentEntryCreateView(CreateView):
                     form=form,
                     debit_formset=debit_fs,
                     credit_formset=credit_fs,
+                    debit_initial_json=debit_initial_json,
+                    credit_initial_json=credit_initial_json,
                 )
             )
 
@@ -121,8 +137,10 @@ class AdjustmentEntryCreateView(CreateView):
                     form_initial = {"summary": "貸倒引当金繰入額の計上"}
                 debit_initial = [{"account": debit_account, "amount": entry_amount}]
                 credit_initial = [{"account": credit_account, "amount": entry_amount}]
+                debit_initial_json = self._initial_to_json(debit_initial)
+                credit_initial_json = self._initial_to_json(credit_initial)
             else:
-                debit_initial = credit_initial = None
+                debit_initial_json = credit_initial_json = "[]"
                 form_initial = None
 
             form = AdjustmentJournalEntryForm(
@@ -132,13 +150,11 @@ class AdjustmentEntryCreateView(CreateView):
                 self.debit_formset_class,
                 post_data,
                 prefix=f"{prefix}-debit",
-                initial=debit_initial,
             )
             credit_fs = self._create_formset(
                 self.credit_formset_class,
                 post_data,
                 prefix=f"{prefix}-credit",
-                initial=credit_initial,
             )
             blocks.append(
                 EntryBlock(
@@ -147,6 +163,8 @@ class AdjustmentEntryCreateView(CreateView):
                     form=form,
                     debit_formset=debit_fs,
                     credit_formset=credit_fs,
+                    debit_initial_json=debit_initial_json,
+                    credit_initial_json=credit_initial_json,
                 )
             )
 

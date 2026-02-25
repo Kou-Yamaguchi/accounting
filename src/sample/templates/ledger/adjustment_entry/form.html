@@ -157,7 +157,10 @@
 
   {% if entry_blocks %}
     {% for block in entry_blocks %}
-    <div class="entry-block card mb-4" data-block-key="{{ block.key }}">
+    <div class="entry-block card mb-4"
+         data-block-key="{{ block.key }}"
+         data-initial-debit="{{ block.debit_initial_json }}"
+         data-initial-credit="{{ block.credit_initial_json }}">
       <div class="card-header">
         <h4 class="mb-0">{{ block.title }}</h4>
       </div>
