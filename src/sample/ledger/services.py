@@ -18,6 +18,7 @@ from .models import (
     Company,
 )
 from .structures import YearMonth, DayRange, AccountWithTotal
+from .dtos import JournalRow, LedgerRow
 
 
 def get_current_year_month() -> YearMonth:
@@ -29,6 +30,25 @@ def get_current_year_month() -> YearMonth:
     """
     today = date.today()
     return YearMonth(year=today.year, month=today.month)
+
+
+def get_year_month_from_string(year_month_str: str) -> YearMonth:
+    """
+    "YYYY-MM"形式の文字列からYearMonthオブジェクトを生成して返します。
+
+    Args:
+        year_month_str (str): "YYYY-MM"形式の年月文字列
+
+    Returns:
+        YearMonth: 指定された年月を持つYearMonthオブジェクト
+    """
+    try:
+        year_str, month_str = year_month_str.split("-")
+        year = int(year_str)
+        month = int(month_str)
+        return YearMonth(year=year, month=month)
+    except ValueError:
+        raise ValueError("year_month_str must be in 'YYYY-MM' format")
 
 
 def get_last_year_month() -> YearMonth:
@@ -119,6 +139,56 @@ def get_initial_balance(account_id: int) -> Decimal:
         return Decimal("0.00")
 
 
+def calculate_cumulative_entry_total(
+    entry: Entry, account: Account, end_day: date
+) -> Decimal:
+    """
+    指定された勘定科目の累積借方・貸方合計を計算するユーティリティメソッド。
+
+    Args:
+        entry (Entry): DebitまたはCreditモデル
+        account (Account): 対象の勘定科目
+        end_day (date): 期末日
+
+    Returns:
+        Decimal: 指定された勘定科目の累積借方or貸方の合計金額
+    """
+    total_amount = entry.objects.filter(
+        account=account,
+        journal_entry__date__lte=end_day,
+    ).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+    return total_amount
+
+
+def get_balance(account: Account, end_day: date) -> Decimal:
+    """
+    指定された日までの勘定科目の残高を計算します。
+
+    Args:
+        account (Account): 対象の勘定科目
+        end_day (date): 期末日
+
+    Returns:
+        Decimal: 指定された期間内の勘定科目の残高
+    """
+    # FIXME: end_dayがNoneの場合の処理をどうするか？現状は0を返すが、実際には全期間の残高を返すべきかもしれない。もしくはエラーにするべきかもしれない。
+    if end_day is None:
+        return Decimal("0.00")
+    debit_total = calculate_cumulative_entry_total(Debit, account, end_day)
+    credit_total = calculate_cumulative_entry_total(Credit, account, end_day)
+
+    balance = debit_total - credit_total
+    
+    return balance
+
+    if account.type in ["asset", "expense"]:
+        balance = debit_total - credit_total
+    else:
+        balance = credit_total - debit_total
+
+    return balance
+
+
 def get_all_account_objects() -> list[Account]:
     """全ての勘定科目オブジェクトを取得するユーティリティ関数。"""
     return list(Account.objects.all().order_by("type", "name"))
@@ -158,6 +228,40 @@ def calc_each_account_totals(
         for account in accounts
     ]
     return account_totals
+
+
+def get_journal_entries(account: Account, day_range: DayRange = None) -> list[JournalEntry]:
+    """
+    指定された勘定科目に関連する全ての仕訳を取得するユーティリティメソッド。
+    N+1問題を避けるため、prefetch_relatedを使用して関連オブジェクトを事前に取得
+
+    Args:
+        account (Account): 対象の勘定科目
+        day_range (DayRange, optional): 期間範囲。デフォルトはNone（全期間）
+
+    Returns:
+        QuerySet: 指定された勘定科目に関連する全ての仕訳のクエリセット
+    """
+    journal_entries = (
+        JournalEntry.objects.filter(
+            (Q(debits__account=account) | Q(credits__account=account)) & (Q(date__gte=day_range.start) & Q(date__lte=day_range.end)) if day_range else Q()
+        )
+        .distinct()
+        .order_by("date", "pk")
+        .prefetch_related(
+            Prefetch(
+                "debits",
+                queryset=Debit.objects.select_related("account"),
+                to_attr="prefetched_debits",
+            ),
+            Prefetch(
+                "credits",
+                queryset=Credit.objects.select_related("account"),
+                to_attr="prefetched_credits",
+            ),
+        )
+    )
+    return journal_entries
 
 
 def get_all_journal_entries_for_account(account: Account) -> list[JournalEntry]:
@@ -793,3 +897,114 @@ def calc_total_credit_amount_from_journal_entry_list(journal_entries: list[Journ
         print("Warning: 貸方合計金額が0です。データの確認を推奨します。")
         return Decimal("0.00")
     return total_credit
+
+
+def get_list_general_ledger_row(account: Account, day_range: DayRange = None) -> list[LedgerRow]:
+    """
+    指定された勘定科目と期間に基づいて、総勘定元帳の行データを生成します。
+
+    Args:
+        account (Account): 対象の勘定科目
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+
+    Returns:
+        list[LedgerRow]: 総勘定元帳の行データのリスト
+    """
+    ledger_rows = []
+    running_balance = Decimal("0.00")
+
+    if day_range:
+        last_day = day_range.start - relativedelta(days=1)
+        initial_balance = get_balance(account, last_day)
+
+        running_balance = initial_balance
+
+        # running_balance = get_initial_balance(account)
+        ledger_rows.append(
+            LedgerRow(
+                date=str(day_range.start) if day_range else str(date.today()),
+                description="前月繰越",
+                counter_account_name="前期繰越",
+                debit_amount=str(initial_balance) if initial_balance > 0 else "",
+                credit_amount=str(-initial_balance) if initial_balance < 0 else "",
+                debit_or_credit="借" if initial_balance > 0 else "貸" if initial_balance < 0 else "-",
+                balance=str(running_balance),
+            )
+        )
+
+    journal_entries: list[JournalEntry] = get_journal_entries(account, day_range)
+    target_account_id = account.id
+
+
+    for je in journal_entries:
+        all_debits: set[Account] = collect_account_set_from_je(je, is_debit=True)
+        all_credits: set[Account] = collect_account_set_from_je(je, is_debit=False)
+
+        is_debit_entry = target_account_id in [acc.id for acc in all_debits]
+
+        if is_debit_entry:
+            counter_party_accounts = all_credits
+        else:
+            counter_party_accounts = all_debits
+
+        if is_debit_entry:
+            # debit_amount = je.prefetched_debits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            debit_amount = je.prefetched_debits[0].amount
+            if debit_amount == 0:
+                print(f"Warning: 仕訳ID {je.id} の借方金額が0です。データの確認を推奨します。")
+            credit_amount = Decimal("0.00")
+            delta_running_balance = debit_amount
+        else:
+            # credit_amount = je.prefetched_credits.filter(account_id=target_account_id).aggregate(Sum("amount"))["amount__sum"] or Decimal("0.00")
+            credit_amount = je.prefetched_credits[0].amount
+            if credit_amount == 0:
+                print(f"Warning: 仕訳ID {je.id} の貸方金額が0です。データの確認を推奨します。")
+            debit_amount = Decimal("0.00")
+            delta_running_balance = -credit_amount
+
+        running_balance += delta_running_balance
+
+        counter_party_name = determine_counter_party_name(counter_party_accounts)
+
+        row = LedgerRow(
+            date=str(je.date),
+            description=je.summary,
+            counter_account_name=counter_party_name,
+            debit_amount=str(debit_amount),
+            credit_amount=str(credit_amount),
+            debit_or_credit="借" if running_balance > 0 else "貸" if running_balance < 0 else "-",
+            balance=str(running_balance),
+        )
+        ledger_rows.append(row)
+
+    return ledger_rows
+
+
+def get_general_ledger_data(day_range: DayRange, is_all: bool = True, account: Account  = None) -> dict:
+    """
+    指定された条件に基づいて総勘定元帳データを取得します。
+
+    Args:
+        day_range (DayRange): 期間開始日と終了日を含むDayRangeオブジェクト
+        is_all (bool): 全科目を対象とするかどうか
+        account (Account | None): 対象の勘定科目（is_allがFalseの場合に指定）
+
+    Returns:
+        dict: 総勘定元帳データの辞書
+    """
+    if is_all:
+        accounts = Account.objects.all()
+    else:
+        if account is None:
+            raise ValueError("accountパラメータが指定されていません。")
+        try:
+            account = Account.objects.get(id=account.id)
+        except Account.DoesNotExist:
+            raise ValueError(f"指定されたaccount ID {account.id} は存在しません。")
+        accounts = [account]
+
+    result = {}
+    for acc in accounts:
+        result[acc.name] = get_list_general_ledger_row(acc, day_range)
+
+    return result
