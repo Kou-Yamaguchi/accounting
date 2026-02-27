@@ -127,29 +127,31 @@ class BaseTotalFormSet(forms.BaseInlineFormSet):
 
         total_amount = Decimal("0.00")
         has_errors = False
+        visible_row = 0
 
-        for i, form in enumerate(self.forms):
+        for form in self.forms:
             if form.cleaned_data.get("DELETE", False):
                 continue
 
+            visible_row += 1
             amount = form.cleaned_data.get(AMOUNT)
             if amount is None:
                 # フォームセット全体のエラーとして追加（早期リターンしない）
-                # self.add_error(None, f"{i+1}行目: {ErrorMessages.MESSAGE_0004.value}")
+                # self.add_error(None, f"{visible_row}行目: {ErrorMessages.MESSAGE_0004.value}")
                 # has_errors = True
                 self._non_form_errors.append(
                     forms.ValidationError(
-                        f"{i+1}行目: {ErrorMessages.MESSAGE_0004.value}"
+                        f"{visible_row}行目: {ErrorMessages.MESSAGE_0004.value}"
                     )
                 )
                 continue
 
             if amount <= 0:
-                # self.add_error(None, f"{i+1}行目: {ErrorMessages.MESSAGE_0003.value}")
+                # self.add_error(None, f"{visible_row}行目: {ErrorMessages.MESSAGE_0003.value}")
                 # has_errors = True
                 self._non_form_errors.append(
                     forms.ValidationError(
-                        f"{i+1}行目: {ErrorMessages.MESSAGE_0003.value}"
+                        f"{visible_row}行目: {ErrorMessages.MESSAGE_0003.value}"
                     )
                 )
                 continue

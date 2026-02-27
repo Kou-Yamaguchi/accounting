@@ -176,19 +176,31 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial
 
   // テーブルを初期化（既存フォームデータを行に配置）
   function initializeTable(debitCount, creditCount) {
-    const maxRows = Math.max(debitCount, creditCount, 1);
+    // DELETE 済みを除いた有効インデックスを収集
+    const activeDebit = [];
+    for (let i = 0; i < debitCount; i++) {
+      const del = document.querySelector(`[name="${debitPrefix}-${i}-DELETE"]`);
+      if (!del || !del.checked) activeDebit.push(i);
+    }
+    const activeCredit = [];
+    for (let i = 0; i < creditCount; i++) {
+      const del = document.querySelector(`[name="${creditPrefix}-${i}-DELETE"]`);
+      if (!del || !del.checked) activeCredit.push(i);
+    }
+
+    const maxRows = Math.max(activeDebit.length, activeCredit.length, 1);
     for (let i = 0; i < maxRows; i++) {
       const row = createRow();
 
-      if (i < debitCount) {
-        const cells = getExistingCells(i, true);
+      if (i < activeDebit.length) {
+        const cells = getExistingCells(activeDebit[i], true);
         moveContents(row.children[0], cells.accountCell);
         moveContents(row.children[1], cells.amountCell);
         moveContents(row.children[2], cells.deleteCell);
       }
 
-      if (i < creditCount) {
-        const cells = getExistingCells(i, false);
+      if (i < activeCredit.length) {
+        const cells = getExistingCells(activeCredit[i], false);
         moveContents(row.children[3], cells.accountCell);
         moveContents(row.children[4], cells.amountCell);
         moveContents(row.children[5], cells.deleteCell);
@@ -197,15 +209,15 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial
       tbody.appendChild(row);
     }
 
-    if (debitCount === 0) {
-      document.querySelector(debitTotalSelector).value = 1;
-      const cells = createCells(0, true, debitInitial[0]);
+    if (activeDebit.length === 0) {
+      document.querySelector(debitTotalSelector).value = debitCount + 1;
+      const cells = createCells(debitCount, true, debitInitial[0]);
       attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, true);
     }
 
-    if (creditCount === 0) {
-      document.querySelector(creditTotalSelector).value = 1;
-      const cells = createCells(0, false, creditInitial[0]);
+    if (activeCredit.length === 0) {
+      document.querySelector(creditTotalSelector).value = creditCount + 1;
+      const cells = createCells(creditCount, false, creditInitial[0]);
       attachCells(cells.accountCell, cells.amountCell, cells.deleteCell, false);
     }
 
