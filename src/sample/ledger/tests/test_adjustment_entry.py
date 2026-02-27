@@ -47,19 +47,6 @@ class AdjustmentJournalEntryFormTest(TestCase):
         form = AdjustmentJournalEntryForm()
         self.assertNotIn("date", form.fields)
 
-    def test_form_includes_fiscal_period_field(self):
-        """fiscal_periodフィールドが含まれていることを確認"""
-        form = AdjustmentJournalEntryForm()
-        self.assertIn("fiscal_period", form.fields)
-
-    def test_fiscal_period_queryset_excludes_closed_periods(self):
-        """クローズ済み期間が選択肢から除外されることを確認"""
-        form = AdjustmentJournalEntryForm()
-        fiscal_periods = list(form.fields["fiscal_period"].queryset)
-
-        self.assertIn(self.fiscal_period_open, fiscal_periods)
-        self.assertNotIn(self.fiscal_period_closed, fiscal_periods)
-
     def test_form_includes_summary_and_company_fields(self):
         """summaryとcompanyフィールドが含まれていることを確認"""
         form = AdjustmentJournalEntryForm()
@@ -102,49 +89,79 @@ class AdjustmentEntryCreateViewTest(TestCase):
             is_closed=False,
         )
 
-        self.base_post = {
-            "fiscal_period": str(self.fiscal_period.id),
-            "summary": "決算整理仕訳",
-            "company": str(self.company.id),
-            "debits-TOTAL_FORMS": "0",
-            "debits-INITIAL_FORMS": "0",
-            "credits-TOTAL_FORMS": "0",
-            "credits-INITIAL_FORMS": "0",
-        }
+    def _create_building_asset(self):
+        """未計上の減価償却費がある固定資産を作成するヘルパー"""
+        building_account = Account.objects.get(name="建物")
+        je = JournalEntry.objects.create(
+            date=date(2024, 4, 1),
+            summary="建物購入",
+            company=self.company,
+            entry_type="normal",
+        )
+        # NOTE: 固定資産の取得仕訳は、減価償却費の計算に影響するため、必ず作成する必要があります。減価償却費の計算は、取得原価をもとに行われるため、取得仕訳がないと正しい減価償却費が計算されません。
+        Debit.objects.create(
+            journal_entry=je,
+            account=building_account,
+            amount=Decimal("10000000"),
+        )
+        FixedAsset.objects.create(
+            name="本社ビル",
+            account=building_account,
+            acquisition_date=date(2024, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            useful_life=20,
+            residual_value=Decimal("0"),
+            acquisition_journal_entry=je,
+        )
 
-    def build_post(self, date=None, summary=None, debit_items=None, credit_items=None):
+    def build_post(
+        self,
+        block_key="depreciation",
+        summary=None,
+        debit_items=None,
+        credit_items=None,
+    ):
         """
+        block_key   : EntryBlock のキー（デフォルト "depreciation"）
         debit_items / credit_items はリスト。各要素は
         {'account': account_id, 'amount': '123.45', 'id': existing_id (optional)}
         を想定する。id がある要素は INITIAL_FORMS のカウントに含める。
         """
-        data = self.base_post.copy()
-        if date is not None:
-            data["date"] = date
-        if summary is not None:
-            data["summary"] = summary
+        data = {
+            "fiscal_period": str(self.fiscal_period.id),
+            f"{block_key}-summary": summary or "決算整理仕訳",
+            f"{block_key}-company": str(self.company.id),
+            f"{block_key}-debit-TOTAL_FORMS": "0",
+            f"{block_key}-debit-INITIAL_FORMS": "0",
+            f"{block_key}-debit-MIN_NUM_FORMS": "0",
+            f"{block_key}-debit-MAX_NUM_FORMS": "1000",
+            f"{block_key}-credit-TOTAL_FORMS": "0",
+            f"{block_key}-credit-INITIAL_FORMS": "0",
+            f"{block_key}-credit-MIN_NUM_FORMS": "0",
+            f"{block_key}-credit-MAX_NUM_FORMS": "1000",
+        }
 
         # デビット
         if debit_items is not None:
-            data["debits-TOTAL_FORMS"] = str(len(debit_items))
+            data[f"{block_key}-debit-TOTAL_FORMS"] = str(len(debit_items))
             initial_count = sum(1 for it in debit_items if it.get("id") is not None)
-            data["debits-INITIAL_FORMS"] = str(initial_count)
+            data[f"{block_key}-debit-INITIAL_FORMS"] = str(initial_count)
             for i, item in enumerate(debit_items):
                 if "id" in item:
-                    data[f"debits-{i}-id"] = str(item["id"])
-                data[f"debits-{i}-account"] = str(item["account"])
-                data[f"debits-{i}-amount"] = str(item["amount"])
+                    data[f"{block_key}-debit-{i}-id"] = str(item["id"])
+                data[f"{block_key}-debit-{i}-account"] = str(item["account"])
+                data[f"{block_key}-debit-{i}-amount"] = str(item["amount"])
 
         # クレジット
         if credit_items is not None:
-            data["credits-TOTAL_FORMS"] = str(len(credit_items))
+            data[f"{block_key}-credit-TOTAL_FORMS"] = str(len(credit_items))
             initial_count = sum(1 for it in credit_items if it.get("id") is not None)
-            data["credits-INITIAL_FORMS"] = str(initial_count)
+            data[f"{block_key}-credit-INITIAL_FORMS"] = str(initial_count)
             for i, item in enumerate(credit_items):
                 if "id" in item:
-                    data[f"credits-{i}-id"] = str(item["id"])
-                data[f"credits-{i}-account"] = str(item["account"])
-                data[f"credits-{i}-amount"] = str(item["amount"])
+                    data[f"{block_key}-credit-{i}-id"] = str(item["id"])
+                data[f"{block_key}-credit-{i}-account"] = str(item["account"])
+                data[f"{block_key}-credit-{i}-amount"] = str(item["amount"])
 
         return data
 
@@ -181,44 +198,8 @@ class AdjustmentEntryCreateViewTest(TestCase):
 
     def test_form_valid_sets_date_to_period_end(self):
         """form_validで日付が期末日に設定されることを確認"""
-        # 固定資産を作成
-        building_account = Account.objects.get(name="建物")
-        je = JournalEntry.objects.create(
-            date=date(2024, 4, 1),
-            summary="建物購入",
-            company=self.company,
-            entry_type="normal",
-        )
-        Debit.objects.create(
-            journal_entry=je,
-            account=building_account,
-            amount=Decimal("10000000"),
-        )
+        self._create_building_asset()
 
-        FixedAsset.objects.create(
-            name="本社ビル",
-            account=building_account,
-            acquisition_date=date(2024, 4, 1),
-            acquisition_cost=Decimal("10000000"),
-            useful_life=20,
-            residual_value=Decimal("0"),
-            acquisition_journal_entry=je,
-        )
-
-        # POSTデータを準備
-        # post_data = {
-        #     "fiscal_period": self.fiscal_period.id,
-        #     "summary": "決算整理仕訳",
-        #     "company": self.company.id,
-        #     "debit-TOTAL_FORMS": "1",
-        #     "debit-INITIAL_FORMS": "0",
-        #     "debit-0-account": Account.objects.get(name="減価償却費").id,
-        #     "debit-0-amount": "500000",
-        #     "credit-TOTAL_FORMS": "1",
-        #     "credit-INITIAL_FORMS": "0",
-        #     "credit-0-account": Account.objects.get(name="減価償却累計額").id,
-        #     "credit-0-amount": "500000",
-        # }
         data = self.build_post(
             debit_items=[
                 {
@@ -248,21 +229,7 @@ class AdjustmentEntryCreateViewTest(TestCase):
 
     def test_form_valid_sets_entry_type_to_adjustment(self):
         """form_validでentry_typeがadjustmentに設定されることを確認"""
-        # POSTデータを準備
-        # NOTE: 以下のコメントアウト部分は参考用に残しています
-        # post_data = {
-        #     "fiscal_period": self.fiscal_period.id,
-        #     "summary": "決算整理仕訳",
-        #     "company": self.company.id,
-        #     "debit-TOTAL_FORMS": "1",
-        #     "debit-INITIAL_FORMS": "1",
-        #     "debit-0-account": Account.objects.get(name="減価償却費").id,
-        #     "debit-0-amount": "500000",
-        #     "credit-TOTAL_FORMS": "1",
-        #     "credit-INITIAL_FORMS": "1",
-        #     "credit-0-account": Account.objects.get(name="減価償却累計額").id,
-        #     "credit-0-amount": "500000",
-        # }
+        self._create_building_asset()
 
         data = self.build_post(
             debit_items=[
@@ -283,11 +250,13 @@ class AdjustmentEntryCreateViewTest(TestCase):
             reverse("adjustment_entry_new"),
             data=data,
         )
-        
+
         self.assertEqual(response.status_code, 302)  # リダイレクトを確認
 
         # 仕訳が作成されたことを確認
-        journal_entry: JournalEntry = JournalEntry.objects.filter(summary="決算整理仕訳").first()
+        journal_entry: JournalEntry = JournalEntry.objects.filter(
+            summary="決算整理仕訳"
+        ).first()
 
         self.assertIsNotNone(journal_entry)
         # entry_typeがadjustmentに設定されていることを確認
@@ -295,22 +264,7 @@ class AdjustmentEntryCreateViewTest(TestCase):
 
     def test_form_valid_sets_fiscal_period(self):
         """form_validでfiscal_periodが設定されることを確認"""
-        # POSTデータを準備
-        # NOTE: 以下のコメントアウト部分は参考用に残しています
-        # このデータだと動作しないため、下の build_post を使っています
-        # post_data = {
-        #     "fiscal_period": self.fiscal_period.id,
-        #     "summary": "決算整理仕訳",
-        #     "company": self.company.id,
-        #     "debit-TOTAL_FORMS": "1",
-        #     "debit-INITIAL_FORMS": "0",
-        #     "debit-0-account": Account.objects.get(name="減価償却費").id,
-        #     "debit-0-amount": "500000",
-        #     "credit-TOTAL_FORMS": "1",
-        #     "credit-INITIAL_FORMS": "0",
-        #     "credit-0-account": Account.objects.get(name="減価償却累計額").id,
-        #     "credit-0-amount": "500000",
-        # }
+        self._create_building_asset()
 
         data = self.build_post(
             debit_items=[
@@ -334,7 +288,6 @@ class AdjustmentEntryCreateViewTest(TestCase):
 
         # 仕訳が作成されたことを確認
         journal_entry = JournalEntry.objects.filter(summary="決算整理仕訳").first()
-
         self.assertIsNotNone(journal_entry)
         # fiscal_periodが設定されていることを確認
         self.assertEqual(journal_entry.fiscal_period, self.fiscal_period)
@@ -441,7 +394,9 @@ class AdjustmentReferenceInfoTest(TestCase):
         allowance = context["allowance"]
         # 売掛金残高が含まれることを確認
         self.assertIn("receivables_accounts", allowance)
-        self.assertEqual(allowance["receivables_accounts"][0]["balance"], Decimal("1000000"))
+        self.assertEqual(
+            allowance["receivables_accounts"][0]["balance"], Decimal("1000000")
+        )
 
     def test_depreciation_history_recording(self):
         """減価償却履歴が記録されることを確認"""
@@ -502,3 +457,137 @@ class AdjustmentReferenceInfoTest(TestCase):
             1,
         )
         self.assertEqual(depreciation_history.amount, Decimal("500000"))
+
+
+class AdjustmentEntryDepreciationHistoryTest(TestCase):
+    """決算整理仕訳POST時のDepreciationHistory作成のテスト"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="testuser",
+            password="testpass",
+        )
+        self.client.force_login(self.user)
+
+        self.accounts = create_accounts(
+            [
+                AccountData(name="建物", type="asset"),
+                AccountData(name="減価償却累計額", type="asset_contra"),
+                AccountData(name="減価償却費", type="expense"),
+                AccountData(name="現金", type="asset"),
+            ]
+        )
+
+        self.company = Company.objects.create(name="テスト会社")
+        self.fiscal_period = FiscalPeriod.objects.create(
+            name="2024年度",
+            start_date=date(2024, 4, 1),
+            end_date=date(2025, 3, 31),
+            is_closed=False,
+        )
+
+    def _create_building_asset(self, asset_number="FA-001"):
+        building_account = Account.objects.get(name="建物")
+        je = JournalEntry.objects.create(
+            date=date(2024, 4, 1),
+            summary="建物購入",
+            company=self.company,
+            entry_type="normal",
+        )
+        Debit.objects.create(
+            journal_entry=je,
+            account=building_account,
+            amount=Decimal("10000000"),
+        )
+        return FixedAsset.objects.create(
+            name="本社ビル",
+            asset_number=asset_number,
+            account=building_account,
+            acquisition_date=date(2024, 4, 1),
+            acquisition_cost=Decimal("10000000"),
+            useful_life=20,
+            residual_value=Decimal("0"),
+            acquisition_journal_entry=je,
+        )
+
+    def _post_depreciation(self, amount="500000"):
+        debit_account_id = Account.objects.get(name="減価償却費").id
+        credit_account_id = Account.objects.get(name="減価償却累計額").id
+        data = {
+            "fiscal_period": str(self.fiscal_period.id),
+            "depreciation-summary": "減価償却費の計上",
+            "depreciation-company": str(self.company.id),
+            "depreciation-debit-TOTAL_FORMS": "1",
+            "depreciation-debit-INITIAL_FORMS": "0",
+            "depreciation-debit-MIN_NUM_FORMS": "0",
+            "depreciation-debit-MAX_NUM_FORMS": "1000",
+            "depreciation-debit-0-account": str(debit_account_id),
+            "depreciation-debit-0-amount": amount,
+            "depreciation-credit-TOTAL_FORMS": "1",
+            "depreciation-credit-INITIAL_FORMS": "0",
+            "depreciation-credit-MIN_NUM_FORMS": "0",
+            "depreciation-credit-MAX_NUM_FORMS": "1000",
+            "depreciation-credit-0-account": str(credit_account_id),
+            "depreciation-credit-0-amount": amount,
+        }
+        return self.client.post(reverse("adjustment_entry_new"), data=data)
+
+    def test_post_creates_depreciation_history(self):
+        """POST成功時にDepreciationHistoryが作成されること"""
+        asset = self._create_building_asset()
+
+        response = self._post_depreciation()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )
+
+    def test_post_history_has_correct_amount(self):
+        """作成されたDepreciationHistoryの金額が計算値と一致すること"""
+        asset = self._create_building_asset()
+
+        self._post_depreciation(amount="500000")
+
+        history = DepreciationHistory.objects.get(
+            fixed_asset=asset, fiscal_period=self.fiscal_period
+        )
+        self.assertEqual(history.amount, Decimal("500000.00"))
+
+    def test_post_history_linked_to_journal_entry(self):
+        """作成されたDepreciationHistoryが保存された仕訳と紐付けられること"""
+        asset = self._create_building_asset()
+
+        self._post_depreciation()
+
+        journal_entry = JournalEntry.objects.get(summary="減価償却費の計上")
+        history = DepreciationHistory.objects.get(
+            fixed_asset=asset, fiscal_period=self.fiscal_period
+        )
+        self.assertEqual(history.depreciation_journal_entry, journal_entry)
+
+    def test_post_does_not_duplicate_history_when_already_recorded(self):
+        """全資産が計上済みの場合、POSTしてもDepreciationHistoryが増加しないこと"""
+        asset = self._create_building_asset()
+        DepreciationHistory.objects.create(
+            fixed_asset=asset,
+            fiscal_period=self.fiscal_period,
+            amount=Decimal("500000"),
+        )
+
+        # 計上済みのため depreciation ブロックは生成されず、空のPOSTになる
+        response = self.client.post(
+            reverse("adjustment_entry_new"),
+            data={"fiscal_period": str(self.fiscal_period.id)},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            DepreciationHistory.objects.filter(
+                fixed_asset=asset, fiscal_period=self.fiscal_period
+            ).count(),
+            1,
+        )

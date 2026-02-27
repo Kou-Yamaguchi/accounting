@@ -51,46 +51,48 @@
   </div>
   {% endif %}
   
-  <div class="table-responsive">
-    <table class="table table-bordered" id="journal-entry-table">
-      <thead>
-        <tr>
-          <th>勘定科目(借方)</th>
-          <th>金額(借方)</th>
-          <th style="width: 80px;"></th>
-          <th>勘定科目(貸方)</th>
-          <th>金額(貸方)</th>
-          <th style="width: 80px;"></th>
-        </tr>
-      </thead>
-      <tbody id="journal-entry-tbody">
-        {{ debit_formset.management_form }}
-        {{ credit_formset.management_form }}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- 非表示のテンプレート -->
-  <div style="display:none;" id="formset-templates">
-    <div id="debit-template">
-      {{ debit_formset.empty_form.as_p }}
+  <div class="entry-block" data-block-key="main" data-debit-prefix="debits" data-credit-prefix="credits">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="journal-entry-table-main">
+        <thead>
+          <tr>
+            <th>勘定科目(借方)</th>
+            <th>金額(借方)</th>
+            <th style="width: 80px;"></th>
+            <th>勘定科目(貸方)</th>
+            <th>金額(貸方)</th>
+            <th style="width: 80px;"></th>
+          </tr>
+        </thead>
+        <tbody id="journal-entry-tbody-main">
+          {{ debit_formset.management_form }}
+          {{ credit_formset.management_form }}
+        </tbody>
+      </table>
     </div>
-    <div id="credit-template">
-      {{ credit_formset.empty_form.as_p }}
-    </div>
-  </div>
 
-  <div id="existing-forms" style="display: none;">
-    {% for form in debit_formset %}
-      {{ form.as_p }}
-    {% endfor %}
-    {% for form in credit_formset %}
-      {{ form.as_p }}
-    {% endfor %}
-  </div>
-  <div class="mb-3">
-    <button type="button" class="btn btn-primary me-2" id="add-debit-button">借方行を追加</button>
-    <button type="button" class="btn btn-primary" id="add-credit-button">貸方行を追加</button>
+    <!-- 非表示のテンプレート -->
+    <div style="display:none;" id="formset-templates-main">
+      <div id="debit-template-main">
+        {{ debit_formset.empty_form.as_p }}
+      </div>
+      <div id="credit-template-main">
+        {{ credit_formset.empty_form.as_p }}
+      </div>
+    </div>
+
+    <div id="existing-forms-main" style="display: none;">
+      {% for form in debit_formset %}
+        {{ form.as_p }}
+      {% endfor %}
+      {% for form in credit_formset %}
+        {{ form.as_p }}
+      {% endfor %}
+    </div>
+    <div class="mb-3">
+      <button type="button" class="btn btn-primary me-2" id="add-debit-button-main">借方行を追加</button>
+      <button type="button" class="btn btn-primary" id="add-credit-button-main">貸方行を追加</button>
+    </div>
   </div>
 
   <!-- 固定資産登録フォーム -->

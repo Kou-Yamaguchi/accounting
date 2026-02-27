@@ -232,6 +232,29 @@ class AdjustmentCalculator:
         }
 
     @staticmethod
+    def record_depreciation(
+        depreciation_info: Dict,
+        fiscal_period: FiscalPeriod,
+        journal_entry: JournalEntry,
+    ) -> None:
+        """
+        未計上の固定資産に対して減価償却履歴を作成する
+
+        Args:
+            depreciation_info (Dict): calculate_depreciation の返り値
+            fiscal_period (FiscalPeriod): 対象会計期間
+            journal_entry (JournalEntry): 減価償却費の仕訳
+        """
+        for asset_data in depreciation_info.get("assets", []):
+            if not asset_data["already_recorded"]:
+                DepreciationHistory.objects.create(
+                    fixed_asset_id=asset_data["asset_id"],
+                    fiscal_period=fiscal_period,
+                    amount=asset_data["current_period_depreciation"],
+                    depreciation_journal_entry=journal_entry,
+                )
+
+    @staticmethod
     def _calculate_months_in_period(
         acquisition_date: date, fiscal_period: FiscalPeriod
     ) -> int:
