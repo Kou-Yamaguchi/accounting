@@ -213,6 +213,19 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial
     updateDeleteButtons();
   }
 
+  // 削除済みフォームの hidden フィールドを保持するコンテナを取得（なければ生成）
+  function getHiddenContainer() {
+    const containerId = `deleted-fields-${blockKey}`;
+    let container = document.getElementById(containerId);
+    if (!container) {
+      container = document.createElement('div');
+      container.id = containerId;
+      container.style.display = 'none';
+      tbody.closest('form').appendChild(container);
+    }
+    return container;
+  }
+
   // 行を生成
   function createRow() {
     const row = document.createElement('tr');
@@ -250,11 +263,14 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial
     tbody.querySelectorAll(`.${debitRemoveClass}`).forEach(button => {
       button.onclick = function () {
         const row = this.closest('tr');
-        const checkbox = row.querySelector(`input[name*="${debitPrefix}"][name*="DELETE"]`);
-        if (checkbox) checkbox.checked = true;
-        row.querySelectorAll('td:nth-child(1) *, td:nth-child(2) *').forEach(el => {
-          if (el.tagName !== 'INPUT' || el.type !== 'checkbox') el.remove();
-        });
+        const container = getHiddenContainer();
+        const checkbox = row.querySelector(`input[name*="${debitPrefix}"][name*="-DELETE"]`);
+        const idField = row.querySelector(`input[name*="${debitPrefix}"][name*="-id"]`);
+        const jeField = row.querySelector(`input[name*="${debitPrefix}"][name*="-journal_entry"]`);
+        if (checkbox) { checkbox.checked = true; container.appendChild(checkbox); }
+        if (idField) container.appendChild(idField);
+        if (jeField) container.appendChild(jeField);
+        row.querySelectorAll('td:nth-child(1) *, td:nth-child(2) *').forEach(el => el.remove());
         this.remove();
         compactSideRows(true);
         updateDeleteButtons();
@@ -264,11 +280,14 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial
     tbody.querySelectorAll(`.${creditRemoveClass}`).forEach(button => {
       button.onclick = function () {
         const row = this.closest('tr');
-        const checkbox = row.querySelector(`input[name*="${creditPrefix}"][name*="DELETE"]`);
-        if (checkbox) checkbox.checked = true;
-        row.querySelectorAll('td:nth-child(4) *, td:nth-child(5) *').forEach(el => {
-          if (el.tagName !== 'INPUT' || el.type !== 'checkbox') el.remove();
-        });
+        const container = getHiddenContainer();
+        const checkbox = row.querySelector(`input[name*="${creditPrefix}"][name*="-DELETE"]`);
+        const idField = row.querySelector(`input[name*="${creditPrefix}"][name*="-id"]`);
+        const jeField = row.querySelector(`input[name*="${creditPrefix}"][name*="-journal_entry"]`);
+        if (checkbox) { checkbox.checked = true; container.appendChild(checkbox); }
+        if (idField) container.appendChild(idField);
+        if (jeField) container.appendChild(jeField);
+        row.querySelectorAll('td:nth-child(4) *, td:nth-child(5) *').forEach(el => el.remove());
         this.remove();
         compactSideRows(false);
         updateDeleteButtons();
@@ -330,21 +349,19 @@ function initJournalEntryBlock(blockKey, debitPrefix, creditPrefix, debitInitial
     cleanupEmptyRows();
   }
 
-  // 借方・貸方ともに空の行を非表示
+  // 借方・貸方ともに空の行を削除
   function cleanupEmptyRows() {
     tbody.querySelectorAll('tr').forEach(row => {
       const hasDebit = row.querySelector(`td:nth-child(1) [name*="${debitPrefix}"][name*="-account"]`);
       const hasCredit = row.querySelector(`td:nth-child(4) [name*="${creditPrefix}"][name*="-account"]`);
-      if (!hasDebit && !hasCredit) row.style.display = 'none';
+      if (!hasDebit && !hasCredit) row.remove();
     });
   }
 
   // 削除ボタンの有効/無効を更新（最低1行は残す）
   function updateDeleteButtons() {
-    const visibleDebit = Array.from(tbody.querySelectorAll(`.${debitRemoveClass}`))
-      .filter(btn => btn.closest('tr').style.display !== 'none');
-    const visibleCredit = Array.from(tbody.querySelectorAll(`.${creditRemoveClass}`))
-      .filter(btn => btn.closest('tr').style.display !== 'none');
+    const visibleDebit = Array.from(tbody.querySelectorAll(`.${debitRemoveClass}`));
+    const visibleCredit = Array.from(tbody.querySelectorAll(`.${creditRemoveClass}`));
 
     function setDisabled(buttons, disabled) {
       buttons.forEach(btn => {
