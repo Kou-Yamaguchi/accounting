@@ -27,6 +27,6 @@ def yen(value) -> str:
     rounded = d.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     negative = rounded < 0
     abs_part = int(abs(rounded))
-    formatted = intcomma(abs_part)
+    formatted = intcomma(abs_part, use_l10n=False)
     body = f"¥{formatted}"
     return f"-{body}" if negative else body
