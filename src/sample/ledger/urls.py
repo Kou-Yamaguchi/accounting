@@ -30,9 +30,9 @@ from ledger.views.views import (
     JournalEntryListView,
     JournalEntryUpdateView,
     JournalEntryDeleteView,
-    LedgerSelectView,
     GeneralLedgerView,
 )
+from ledger.views.ledger_select import LedgerSelectView
 from ledger.views.adjustment_entry import AdjustmentEntryCreateView
 from ledger.views.pdf.journal_pdf import journal_pdf
 from ledger.views.pdf.ledger_pdf import ledger_pdf

@@ -69,3 +69,27 @@ header {
   padding: 0;
   margin: 0.25rem 0 0 0;
 }
+
+.report-item {
+  padding: 16px 20px;
+  transition: all 0.2s ease;
+}
+
+/* 有効時のみhover */
+.report-item:not(.disabled-item):hover {
+  background-color: #f8f9fa;
+  transform: translateX(4px);
+  cursor: pointer;
+}
+
+/* 無効状態 */
+.disabled-item {
+  background-color: #f8f9fa;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 念のためポインタイベントも無効化 */
+.disabled-item * {
+  pointer-events: none;
+}
