@@ -261,12 +261,6 @@ class JournalEntryDeleteView(DeleteView):
     success_url = reverse_lazy("journal_entry_list")
 
 
-class LedgerSelectView(TemplateView):
-    """帳票選択ビュー"""
-
-    template_name = "ledger/ledger_select.html"
-
-
 class GeneralLedgerView(TemplateView):
     """
     特定の勘定科目の総勘定元帳を取得・表示するビュー。
