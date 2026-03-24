@@ -5,7 +5,7 @@ from django.test import SimpleTestCase
 
 
 class YenFilterTest(SimpleTestCase):
-    def _render(self, template_str: str, context: dict | None = None) -> str:
+    def _render(self, template_str: str, context: dict = None) -> str:
         t = Template("{% load ledger_money %}" + template_str)
         return t.render(Context(context or {})).strip()
 
