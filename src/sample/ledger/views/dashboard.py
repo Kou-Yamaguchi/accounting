@@ -74,6 +74,9 @@ class DashboardView(TemplateView):
         )
         context["monthly_sales"] = calc_monthly_sales(current_year_month)
         context["monthly_profit"] = calc_monthly_profit(current_year_month)
+        # ダッシュボード KPI（税引前利益・現金残高は未連携のプレースホルダ）
+        context["pretax_profit"] = Decimal("780000.00")
+        context["cash_balance"] = Decimal("3200000.00")
 
         context.update(self.get_sales_chart_context())
         context.update(self.get_expense_breakdown_context())

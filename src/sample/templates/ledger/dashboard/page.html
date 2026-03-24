@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-{% load mathfilters %}
-{% load humanize %}
+{% load ledger_money %}
 
 {% block main %}
 
@@ -89,24 +88,24 @@
   <div class="kpi-grid">
     <div class="kpi-card">
       <div class="kpi-title">月次売上</div>
-      <div class="kpi-value">¥{{ monthly_sales|intcomma }}</div>
+      <div class="kpi-value">{{ monthly_sales|yen }}</div>
     </div>
     <div class="kpi-card">
       {% if monthly_profit >= 0 %}
       <div class="kpi-title">月次利益</div>
-      <div class="kpi-value profit">¥{{ monthly_profit|intcomma }}</div>
+      <div class="kpi-value profit">{{ monthly_profit|yen }}</div>
       {% else %}
       <div class="kpi-title">月次損失</div>
-      <div class="kpi-value loss">¥{{ monthly_profit|abs|intcomma }}</div>
+      <div class="kpi-value loss">{{ monthly_profit|yen }}</div>
       {% endif %}
     </div>
     <div class="kpi-card">
       <div class="kpi-title">税引前利益</div>
-      <div class="kpi-value">¥780,000</div>
+      <div class="kpi-value">{{ pretax_profit|yen }}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-title">現金残高</div>
-      <div class="kpi-value">¥3,200,000</div>
+      <div class="kpi-value">{{ cash_balance|yen }}</div>
     </div>
   </div>
 

@@ -1,3 +1,4 @@
+{% load ledger_money %}
 <table id="balance-table" class="table table-striped">
   <thead>
     <tr>
@@ -11,22 +12,22 @@
     {% for debit, credit in paired_columns %}
     <tr>
       <td>{% if debit %}{{ debit.name }}{% endif %}</td>
-      <td>{% if debit %}{{ debit.total }}{% endif %}</td>
+      <td>{% if debit %}{{ debit.total|yen }}{% endif %}</td>
       <td>{% if credit %}{{ credit.name }}{% endif %}</td>
-      <td>{% if credit %}{{ credit.total }}{% endif %}</td>
+      <td>{% if credit %}{{ credit.total|yen }}{% endif %}</td>
     </tr>
     {% endfor %}
     <tr>
       <td>{% if debfb %}繰越欠損金{% endif %}</td>
-      <td>{% if debfb %}{{ debfb }}{% endif %}</td>
+      <td>{% if debfb %}{{ debfb|yen }}{% endif %}</td>
       <td>{% if rebf %}繰越利益剰余金{% endif %}</td>
-      <td>{% if rebf %}{{ rebf }}{% endif %}</td>
+      <td>{% if rebf %}{{ rebf|yen }}{% endif %}</td>
     </tr>
     <tr>
       <td><strong>合計</strong></td>
-      <td><strong>{% if debfb %}{{ total_debits|add:debfb }}{% else %}{{ total_debits }}{% endif %}</strong></td>
+      <td><strong>{% if debfb %}{{ total_debits|add:debfb|yen }}{% else %}{{ total_debits|yen }}{% endif %}</strong></td>
       <td><strong>合計</strong></td>
-      <td><strong>{% if rebf %}{{ total_credits|add:rebf }}{% else %}{{ total_credits }}{% endif %}</strong></td>
+      <td><strong>{% if rebf %}{{ total_credits|add:rebf|yen }}{% else %}{{ total_credits|yen }}{% endif %}</strong></td>
     </tr>
   </tbody>
 </table>

@@ -1,3 +1,4 @@
+{% load ledger_money %}
 <table id="profit-and-loss-table" class="table table-striped">
   <thead>
     <tr>
@@ -11,22 +12,22 @@
     {% for debit, credit in paired_columns %}
     <tr>
       <td>{% if debit %}{{ debit.name }}{% endif %}</td>
-      <td>{% if debit %}{{ debit.total }}{% endif %}</td>
+      <td>{% if debit %}{{ debit.total|yen }}{% endif %}</td>
       <td>{% if credit %}{{ credit.name }}{% endif %}</td>
-      <td>{% if credit %}{{ credit.total }}{% endif %}</td>
+      <td>{% if credit %}{{ credit.total|yen }}{% endif %}</td>
     </tr>
     {% endfor %}
     <tr>
       <td>{% if net_income %}当期純利益{% endif %}</td>
-      <td>{% if net_income %}{{ net_income }}{% endif %}</td>
+      <td>{% if net_income %}{{ net_income|yen }}{% endif %}</td>
       <td>{% if net_loss %}当期純損失{% endif %}</td>
-      <td>{% if net_loss %}{{ net_loss }}{% endif %}</td>
+      <td>{% if net_loss %}{{ net_loss|yen }}{% endif %}</td>
     </tr>
     <tr>
       <td><strong>合計</strong></td>
-      <td><strong>{% if net_income %}{{ total_expense|add:net_income }}{% else %}{{ total_expense }}{% endif %}</strong></td>
+      <td><strong>{% if net_income %}{{ total_expense|add:net_income|yen }}{% else %}{{ total_expense|yen }}{% endif %}</strong></td>
       <td><strong>合計</strong></td>
-      <td><strong>{% if net_loss %}{{ total_revenue|add:net_loss }}{% else %}{{ total_revenue }}{% endif %}</strong></td>
+      <td><strong>{% if net_loss %}{{ total_revenue|add:net_loss|yen }}{% else %}{{ total_revenue|yen }}{% endif %}</strong></td>
     </tr>
   </tbody>
 </table>
