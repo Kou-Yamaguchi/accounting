@@ -19,12 +19,12 @@ def yen(value) -> str:
     if value == "-":
         return "-"
     try:
-        s = str(value).strip().replace(",", "")
-        d = Decimal(s)
+        temp = str(value).strip().replace(",", "")
+        dec_value = Decimal(temp)
     except (InvalidOperation, ValueError, TypeError):
         return str(value)
 
-    rounded = d.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    rounded = dec_value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     negative = rounded < 0
     abs_part = int(abs(rounded))
     formatted = intcomma(abs_part, use_l10n=False)
