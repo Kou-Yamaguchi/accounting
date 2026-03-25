@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load django_bootstrap5 %}
+{% load ledger_money %}
 
 {% block main %}
 
@@ -66,11 +67,11 @@
               <td>{{ asset.asset_number }}</td>
               <td>{{ asset.asset_name }}</td>
               <td>{{ asset.account_name }}</td>
-              <td class="text-end">{{ asset.acquisition_cost|floatformat:0 }}</td>
+              <td class="text-end">{{ asset.acquisition_cost|yen }}</td>
               <td class="text-end">{{ asset.useful_life }}年</td>
-              <td class="text-end">{{ asset.current_period_depreciation|floatformat:0 }}</td>
-              <td class="text-end">{{ asset.accumulated_depreciation_with_current|floatformat:0 }}</td>
-              <td class="text-end">{{ asset.book_value|floatformat:0 }}</td>
+              <td class="text-end">{{ asset.current_period_depreciation|yen }}</td>
+              <td class="text-end">{{ asset.accumulated_depreciation_with_current|yen }}</td>
+              <td class="text-end">{{ asset.book_value|yen }}</td>
               <td>
                 {% if asset.already_recorded %}
                   <span class="badge bg-success">計上済</span>
@@ -82,7 +83,7 @@
             {% endfor %}
             <tr class="table-primary fw-bold">
               <td colspan="5" class="text-end">合計</td>
-              <td class="text-end">{{ depreciation.total_depreciation|floatformat:0 }}</td>
+              <td class="text-end">{{ depreciation.total_depreciation|yen }}</td>
               <td colspan="3"></td>
             </tr>
           </tbody>
@@ -114,23 +115,23 @@
             {% for account in allowance.receivables_accounts %}
             <tr>
               <td>{{ account.account_name }}</td>
-              <td class="text-end">{{ account.balance|floatformat:0 }}</td>
+              <td class="text-end">{{ account.balance|yen }}</td>
             </tr>
             {% endfor %}
             <tr class="table-primary fw-bold">
               <td>合計</td>
-              <td class="text-end">{{ allowance.total_receivables|floatformat:0 }}</td>
+              <td class="text-end">{{ allowance.total_receivables|yen }}</td>
             </tr>
           </tbody>
         </table>
         <div class="calculation-detail">
           <p><strong>引当率:</strong> {{ allowance.allowance_rate|floatformat:2 }}%</p>
-          <p><strong>必要引当金額:</strong> {{ allowance.required_allowance|floatformat:0 }}円</p>
-          <p><strong>前期引当金残高:</strong> {{ allowance.previous_allowance|floatformat:0 }}円</p>
+          <p><strong>必要引当金額:</strong> {{ allowance.required_allowance|yen }}</p>
+          <p><strong>前期引当金残高:</strong> {{ allowance.previous_allowance|yen }}</p>
           <p class="fw-bold">
             <strong>
               {% if allowance.is_reversal %}貸倒引当金戻入額:{% else %}貸倒引当金繰入額:{% endif %}
-            </strong> {{ allowance.entry_amount|floatformat:0 }}円
+            </strong> {{ allowance.entry_amount|yen }}
           </p>
         </div>
         {% else %}

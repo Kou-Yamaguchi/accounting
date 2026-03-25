@@ -1,3 +1,4 @@
+{% load ledger_money %}
 <table class="table table-striped">
   <thead>
     <tr>
@@ -10,7 +11,7 @@
     {% for item in trial_balance_data %}
     {% if item.type == "asset" or item.type == "expense" %}
     <tr>
-      <td>{{ item.total }}</td>
+      <td>{{ item.total|yen }}</td>
       <td>{{ item.name }}</td>
       <td></td>
     </tr>
@@ -18,7 +19,7 @@
     <tr>
       <td></td>
       <td>{{ item.name }}</td>
-      <td>{{ item.total }}</td>
+      <td>{{ item.total|yen }}</td>
     </tr>
     {% endif %}
     {% empty %}
@@ -27,8 +28,8 @@
     </tr>
     {% endfor %}
     <tr>
-      <td><strong>{{ total_debits }}</strong></td>
+      <td><strong>{{ total_debits|yen }}</strong></td>
       <td><strong>合計</strong></td>
-      <td><strong>{{ total_credits }}</strong></td>
+      <td><strong>{{ total_credits|yen }}</strong></td>
     </tr>
   </tbody>

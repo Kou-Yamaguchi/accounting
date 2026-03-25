@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ledger_money %}
 
 {% block main %}
 
@@ -19,14 +20,14 @@
     <td>
       {% for line in entry.debits.all %}
         <div>
-          {{ line.account.name }} {{ line.amount }}
+          {{ line.account.name }} {{ line.amount|yen }}
         </div>
       {% endfor %}
     </td>
     <td>
       {% for line in entry.credits.all %}
         <div>
-          {{ line.account.name }} {{ line.amount }}
+          {{ line.account.name }} {{ line.amount|yen }}
         </div>
       {% endfor %}
     </td>

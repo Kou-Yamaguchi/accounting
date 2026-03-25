@@ -1,4 +1,5 @@
 {% extends "pdf/base_pdf.html" %}
+{% load ledger_money %}
 
 {% block content %}
 <style>
@@ -35,10 +36,10 @@
       <tr>
         <td>{{ entry.date }}</td>
         <td>{{ entry.counter_account_name }}</td>
-        <td class="right">{{ entry.debit_amount }}</td>
-        <td class="right">{{ entry.credit_amount }}</td>
+        <td class="right">{{ entry.debit_amount|yen }}</td>
+        <td class="right">{{ entry.credit_amount|yen }}</td>
         <td>{{ entry.debit_or_credit }}</td>
-        <td>{{ entry.balance }}</td>
+        <td>{{ entry.balance|yen }}</td>
       </tr>
       {% endfor %}
     </tbody>

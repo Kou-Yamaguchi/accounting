@@ -1,4 +1,4 @@
-{% load mathfilters %}
+{% load ledger_money %}
 
 <table class="table table-striped">
   <thead>
@@ -16,10 +16,10 @@
     <tr>
       <td>{{ entry.date }}</td>
       <td>{{ entry.counter_account_name }}</td>
-      <td>{{ entry.debit_amount|default:"-" }}</td>
-      <td>{{ entry.credit_amount|default:"-" }}</td>
+      <td>{{ entry.debit_amount|yen|default:"-" }}</td>
+      <td>{{ entry.credit_amount|yen|default:"-" }}</td>
       <td>{{ entry.debit_or_credit }}</td>
-      <td>{{ entry.balance|abs }}</td>
+      <td>{{ entry.balance|yen }}</td>
     </tr>
     {% endfor %}
   </tbody>

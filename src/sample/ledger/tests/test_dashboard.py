@@ -33,6 +33,8 @@ class DashboardViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("monthly_sales", response.context_data)
         self.assertIn("monthly_profit", response.context_data)
+        self.assertIn("pretax_profit", response.context_data)
+        self.assertIn("cash_balance", response.context_data)
         self.assertIn("sales_chart_labels", response.context_data)
         self.assertIn("sales_chart_sales_data", response.context_data)
         self.assertIn("sales_chart_profit_data", response.context_data)
